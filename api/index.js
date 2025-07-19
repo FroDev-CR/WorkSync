@@ -20,8 +20,17 @@ app.use((req, res, next) => {
 
 // Logging middleware
 app.use((req, res, next) => {
-  console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
+  console.log(`${new Date().toISOString()} - ${req.method} ${req.url} - ${req.originalUrl}`);
   next();
+});
+
+// Ruta de prueba simple
+app.get('/test', (req, res) => {
+  console.log('Accediendo a /test');
+  res.json({ 
+    message: 'Test endpoint funciona!',
+    timestamp: new Date().toISOString()
+  });
 });
 
 // Rutas básicas
