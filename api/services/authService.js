@@ -7,7 +7,7 @@ const OAUTH_CONFIG = {
   jobber: {
     clientId: process.env.JOBBER_CLIENT_ID,
     clientSecret: process.env.JOBBER_CLIENT_SECRET,
-    authUrl: 'https://api.getjobber.com/oauth/authorize',
+    authUrl: 'https://secure.getjobber.com/oauth/authorize',
     tokenUrl: 'https://api.getjobber.com/oauth/token',
     redirectUri: process.env.JOBBER_REDIRECT_URI,
     scope: 'jobs.read jobs.write'
