@@ -2,6 +2,9 @@
 const express = require('express');
 const cors = require('cors');
 const { generateAuthUrl, exchangeCodeForToken, checkConnectionStatus, disconnectProvider } = require('./services/authService');
+const { getJobs, getRecentJobs, getPendingSyncJobs } = require('./services/jobberService');
+const { getRecentInvoices } = require('./services/quickbooksService');
+const { syncJob, syncMultipleJobs, syncPendingJobs, getSyncStats } = require('./services/syncService');
 
 const app = express();
 
@@ -155,6 +158,180 @@ app.post('/auth/disconnect', async (req, res) => {
     console.error('Error desconectando proveedor:', error);
     res.status(500).json({
       error: 'Error desconectando proveedor',
+      message: error.message
+    });
+  }
+});
+
+// Rutas de Jobs (Jobber)
+app.get('/jobs', async (req, res) => {
+  try {
+    const userId = req.query.userId || 'default-user';
+    const { page, perPage, status, dateFrom, dateTo } = req.query;
+    
+    console.log(`Obteniendo Jobs para usuario ${userId}`);
+    
+    const jobs = await getJobs(userId, {
+      page: parseInt(page) || 1,
+      perPage: parseInt(perPage) || 50,
+      status,
+      dateFrom,
+      dateTo
+    });
+    
+    res.json({
+      success: true,
+      jobs: jobs.jobs,
+      pagination: jobs.pagination,
+      total: jobs.total
+    });
+  } catch (error) {
+    console.error('Error obteniendo Jobs:', error);
+    res.status(500).json({
+      error: 'Error obteniendo Jobs',
+      message: error.message
+    });
+  }
+});
+
+app.get('/jobs/recent', async (req, res) => {
+  try {
+    const userId = req.query.userId || 'default-user';
+    console.log(`Obteniendo Jobs recientes para usuario ${userId}`);
+    
+    const jobs = await getRecentJobs(userId);
+    
+    res.json({
+      success: true,
+      jobs: jobs.jobs,
+      total: jobs.total
+    });
+  } catch (error) {
+    console.error('Error obteniendo Jobs recientes:', error);
+    res.status(500).json({
+      error: 'Error obteniendo Jobs recientes',
+      message: error.message
+    });
+  }
+});
+
+app.get('/jobs/pending', async (req, res) => {
+  try {
+    const userId = req.query.userId || 'default-user';
+    console.log(`Obteniendo Jobs pendientes para usuario ${userId}`);
+    
+    const jobs = await getPendingSyncJobs(userId);
+    
+    res.json({
+      success: true,
+      jobs: jobs.jobs,
+      total: jobs.total
+    });
+  } catch (error) {
+    console.error('Error obteniendo Jobs pendientes:', error);
+    res.status(500).json({
+      error: 'Error obteniendo Jobs pendientes',
+      message: error.message
+    });
+  }
+});
+
+// Rutas de sincronización
+app.post('/sync/job', async (req, res) => {
+  try {
+    const { jobId, userId } = req.body;
+    
+    if (!jobId || !userId) {
+      return res.status(400).json({
+        error: 'Parámetros faltantes',
+        message: 'Se requiere jobId y userId'
+      });
+    }
+
+    console.log(`Sincronizando Job ${jobId} para usuario ${userId}`);
+    
+    const result = await syncJob(userId, jobId);
+    
+    res.json(result);
+  } catch (error) {
+    console.error('Error sincronizando Job:', error);
+    res.status(500).json({
+      error: 'Error sincronizando Job',
+      message: error.message
+    });
+  }
+});
+
+app.post('/sync/multiple', async (req, res) => {
+  try {
+    const { jobIds, userId } = req.body;
+    
+    if (!jobIds || !userId || !Array.isArray(jobIds)) {
+      return res.status(400).json({
+        error: 'Parámetros faltantes',
+        message: 'Se requiere jobIds (array) y userId'
+      });
+    }
+
+    console.log(`Sincronizando ${jobIds.length} Jobs para usuario ${userId}`);
+    
+    const result = await syncMultipleJobs(userId, jobIds);
+    
+    res.json({
+      success: true,
+      message: 'Sincronización múltiple completada',
+      result
+    });
+  } catch (error) {
+    console.error('Error sincronizando múltiples Jobs:', error);
+    res.status(500).json({
+      error: 'Error sincronizando múltiples Jobs',
+      message: error.message
+    });
+  }
+});
+
+app.post('/sync/pending', async (req, res) => {
+  try {
+    const { userId } = req.body;
+    
+    if (!userId) {
+      return res.status(400).json({
+        error: 'Parámetros faltantes',
+        message: 'Se requiere userId'
+      });
+    }
+
+    console.log(`Sincronizando Jobs pendientes para usuario ${userId}`);
+    
+    const result = await syncPendingJobs(userId);
+    
+    res.json(result);
+  } catch (error) {
+    console.error('Error sincronizando Jobs pendientes:', error);
+    res.status(500).json({
+      error: 'Error sincronizando Jobs pendientes',
+      message: error.message
+    });
+  }
+});
+
+// Estadísticas de sincronización
+app.get('/sync/stats', async (req, res) => {
+  try {
+    const userId = req.query.userId || 'default-user';
+    console.log(`Obteniendo estadísticas para usuario ${userId}`);
+    
+    const stats = await getSyncStats(userId);
+    
+    res.json({
+      success: true,
+      stats
+    });
+  } catch (error) {
+    console.error('Error obteniendo estadísticas:', error);
+    res.status(500).json({
+      error: 'Error obteniendo estadísticas',
       message: error.message
     });
   }
