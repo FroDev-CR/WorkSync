@@ -1,6 +1,7 @@
 // Servicio para interactuar con la API de Jobber
 const axios = require('axios');
-const { getValidToken, saveErrorLog } = require('./authService');
+const { getValidToken } = require('./authService');
+const { saveErrorLog } = require('../config/firebase');
 
 // Configuración de la API de Jobber
 const JOBBER_API_BASE = 'https://api.getjobber.com/api';
@@ -32,11 +33,13 @@ const getJobs = async (userId, options = {}) => {
     };
   } catch (error) {
     console.error('Error obteniendo Jobs de Jobber:', error.response?.data || error.message);
-    await saveErrorLog(userId, {
-      provider: 'jobber',
-      error: 'get_jobs',
-      message: error.response?.data || error.message
-    });
+    if (saveErrorLog) {
+      await saveErrorLog(userId, {
+        provider: 'jobber',
+        error: 'get_jobs',
+        message: error.response?.data || error.message
+      });
+    }
     throw error;
   }
 };
@@ -56,12 +59,14 @@ const getJobById = async (userId, jobId) => {
     return response.data.job;
   } catch (error) {
     console.error(`Error obteniendo Job ${jobId} de Jobber:`, error.response?.data || error.message);
-    await saveErrorLog(userId, {
-      provider: 'jobber',
-      error: 'get_job_by_id',
-      jobId,
-      message: error.response?.data || error.message
-    });
+    if (saveErrorLog) {
+      await saveErrorLog(userId, {
+        provider: 'jobber',
+        error: 'get_job_by_id',
+        jobId,
+        message: error.response?.data || error.message
+      });
+    }
     throw error;
   }
 };
@@ -100,11 +105,13 @@ const getPendingSyncJobs = async (userId) => {
     };
   } catch (error) {
     console.error('Error obteniendo Jobs pendientes de Jobber:', error.response?.data || error.message);
-    await saveErrorLog(userId, {
-      provider: 'jobber',
-      error: 'get_pending_sync_jobs',
-      message: error.response?.data || error.message
-    });
+    if (saveErrorLog) {
+      await saveErrorLog(userId, {
+        provider: 'jobber',
+        error: 'get_pending_sync_jobs',
+        message: error.response?.data || error.message
+      });
+    }
     throw error;
   }
 };

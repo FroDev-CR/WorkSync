@@ -1,7 +1,7 @@
 // Servicio principal de sincronización
 const { getPendingSyncJobs, transformJobToQuickBooks } = require('./jobberService');
 const { createInvoice, checkInvoiceExists, createCustomer } = require('./quickbooksService');
-const { saveSyncLog, saveErrorLog } = require('../config/firebase');
+const { saveSyncLog, saveErrorLog, getSyncHistory } = require('../config/firebase');
 
 // Sincronizar un Job específico
 const syncJob = async (userId, jobId) => {
@@ -44,19 +44,21 @@ const syncJob = async (userId, jobId) => {
     const invoice = await createInvoice(userId, quickbooksData);
 
     // Guardar log de sincronización
-    await saveSyncLog(userId, {
-      jobId,
-      jobberJobId: jobberJob.id,
-      quickbooksInvoiceId: invoice.id,
-      status: 'success',
-      amount: invoice.amount,
-      syncType: 'manual',
-      details: {
-        jobberStatus: jobberJob.status,
-        quickbooksStatus: invoice.status,
-        customerName: quickbooksData.customer.name
-      }
-    });
+    if (saveSyncLog) {
+      await saveSyncLog(userId, {
+        jobId,
+        jobberJobId: jobberJob.id,
+        quickbooksInvoiceId: invoice.id,
+        status: 'success',
+        amount: invoice.amount,
+        syncType: 'manual',
+        details: {
+          jobberStatus: jobberJob.status,
+          quickbooksStatus: invoice.status,
+          customerName: quickbooksData.customer.name
+        }
+      });
+    }
 
     console.log(`Job ${jobId} sincronizado exitosamente`);
     
@@ -72,12 +74,14 @@ const syncJob = async (userId, jobId) => {
     console.error(`Error sincronizando Job ${jobId}:`, error.message);
     
     // Guardar log de error
-    await saveErrorLog(userId, {
-      provider: 'sync',
-      error: 'sync_job',
-      jobId,
-      message: error.message
-    });
+    if (saveErrorLog) {
+      await saveErrorLog(userId, {
+        provider: 'sync',
+        error: 'sync_job',
+        jobId,
+        message: error.message
+      });
+    }
 
     throw error;
   }
@@ -112,21 +116,23 @@ const syncMultipleJobs = async (userId, jobIds) => {
   }
 
   // Guardar log de sincronización masiva
-  await saveSyncLog(userId, {
-    status: 'batch_completed',
-    syncType: 'batch',
-    summary: {
-      total: jobIds.length,
-      successful: results.successful.length,
-      failed: results.failed.length,
-      skipped: results.skipped.length
-    },
-    details: {
-      successfulJobs: results.successful.map(r => r.jobId),
-      failedJobs: results.failed.map(r => r.jobId),
-      skippedJobs: results.skipped.map(r => r.jobId)
-    }
-  });
+  if (saveSyncLog) {
+    await saveSyncLog(userId, {
+      status: 'batch_completed',
+      syncType: 'batch',
+      summary: {
+        total: jobIds.length,
+        successful: results.successful.length,
+        failed: results.failed.length,
+        skipped: results.skipped.length
+      },
+      details: {
+        successfulJobs: results.successful.map(r => r.jobId),
+        failedJobs: results.failed.map(r => r.jobId),
+        skippedJobs: results.skipped.map(r => r.jobId)
+      }
+    });
+  }
 
   return results;
 };
@@ -182,11 +188,13 @@ const syncPendingJobs = async (userId) => {
   } catch (error) {
     console.error('Error en sincronización automática:', error.message);
     
-    await saveErrorLog(userId, {
-      provider: 'sync',
-      error: 'sync_pending_jobs',
-      message: error.message
-    });
+    if (saveErrorLog) {
+      await saveErrorLog(userId, {
+        provider: 'sync',
+        error: 'sync_pending_jobs',
+        message: error.message
+      });
+    }
 
     throw error;
   }
@@ -195,7 +203,17 @@ const syncPendingJobs = async (userId) => {
 // Obtener estadísticas de sincronización
 const getSyncStats = async (userId) => {
   try {
-    const { getSyncHistory } = require('../config/firebase');
+    if (!getSyncHistory) {
+      return {
+        totalSyncs: 0,
+        successfulSyncs: 0,
+        failedSyncs: 0,
+        totalAmount: 0,
+        lastSync: null,
+        recentActivity: []
+      };
+    }
+
     const history = await getSyncHistory(userId, 100);
     
     const stats = {

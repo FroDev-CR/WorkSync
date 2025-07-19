@@ -1,6 +1,7 @@
 // Servicio para interactuar con la API de QuickBooks
 const axios = require('axios');
-const { getValidToken, saveErrorLog } = require('./authService');
+const { getValidToken } = require('./authService');
+const { saveErrorLog } = require('../config/firebase');
 
 // Configuración de la API de QuickBooks
 const QUICKBOOKS_API_BASE = 'https://sandbox-accounts.platform.intuit.com/v1';
@@ -20,11 +21,13 @@ const getCompanyInfo = async (userId) => {
     return response.data.companies?.[0] || null;
   } catch (error) {
     console.error('Error obteniendo información de empresa de QuickBooks:', error.response?.data || error.message);
-    await saveErrorLog(userId, {
-      provider: 'quickbooks',
-      error: 'get_company_info',
-      message: error.response?.data || error.message
-    });
+    if (saveErrorLog) {
+      await saveErrorLog(userId, {
+        provider: 'quickbooks',
+        error: 'get_company_info',
+        message: error.response?.data || error.message
+      });
+    }
     throw error;
   }
 };
@@ -78,12 +81,14 @@ const createInvoice = async (userId, invoiceData) => {
     };
   } catch (error) {
     console.error('Error creando factura en QuickBooks:', error.response?.data || error.message);
-    await saveErrorLog(userId, {
-      provider: 'quickbooks',
-      error: 'create_invoice',
-      jobId: invoiceData.id,
-      message: error.response?.data || error.message
-    });
+    if (saveErrorLog) {
+      await saveErrorLog(userId, {
+        provider: 'quickbooks',
+        error: 'create_invoice',
+        jobId: invoiceData.id,
+        message: error.response?.data || error.message
+      });
+    }
     throw error;
   }
 };
@@ -141,11 +146,13 @@ const getRecentInvoices = async (userId, limit = 50) => {
     };
   } catch (error) {
     console.error('Error obteniendo facturas recientes de QuickBooks:', error.response?.data || error.message);
-    await saveErrorLog(userId, {
-      provider: 'quickbooks',
-      error: 'get_recent_invoices',
-      message: error.response?.data || error.message
-    });
+    if (saveErrorLog) {
+      await saveErrorLog(userId, {
+        provider: 'quickbooks',
+        error: 'get_recent_invoices',
+        message: error.response?.data || error.message
+      });
+    }
     throw error;
   }
 };
@@ -186,12 +193,14 @@ const createCustomer = async (userId, customerData) => {
     };
   } catch (error) {
     console.error('Error creando cliente en QuickBooks:', error.response?.data || error.message);
-    await saveErrorLog(userId, {
-      provider: 'quickbooks',
-      error: 'create_customer',
-      customerName: customerData.name,
-      message: error.response?.data || error.message
-    });
+    if (saveErrorLog) {
+      await saveErrorLog(userId, {
+        provider: 'quickbooks',
+        error: 'create_customer',
+        customerName: customerData.name,
+        message: error.response?.data || error.message
+      });
+    }
     throw error;
   }
 };
