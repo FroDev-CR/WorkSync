@@ -59,6 +59,37 @@ app.get('/auth/jobber', async (req, res) => {
   }
 });
 
+// Endpoint de prueba para Jobber
+app.get('/auth/jobber/test', async (req, res) => {
+  try {
+    console.log('=== PRUEBA DE CONFIGURACIÓN JOBBER ===');
+    console.log('JOBBER_CLIENT_ID:', process.env.JOBBER_CLIENT_ID ? 'CONFIGURADO' : 'NO CONFIGURADO');
+    console.log('JOBBER_CLIENT_SECRET:', process.env.JOBBER_CLIENT_SECRET ? 'CONFIGURADO' : 'NO CONFIGURADO');
+    console.log('JOBBER_REDIRECT_URI:', process.env.JOBBER_REDIRECT_URI || 'NO CONFIGURADO');
+    console.log('=====================================');
+    
+    const userId = req.query.userId || 'test-user';
+    const authUrl = generateAuthUrl('jobber', userId);
+    
+    res.json({
+      success: true,
+      config: {
+        clientId: process.env.JOBBER_CLIENT_ID ? 'CONFIGURADO' : 'NO CONFIGURADO',
+        clientSecret: process.env.JOBBER_CLIENT_SECRET ? 'CONFIGURADO' : 'NO CONFIGURADO',
+        redirectUri: process.env.JOBBER_REDIRECT_URI || 'NO CONFIGURADO'
+      },
+      authUrl,
+      message: 'Configuración de Jobber verificada'
+    });
+  } catch (error) {
+    console.error('Error en prueba de Jobber:', error);
+    res.status(500).json({
+      error: 'Error en prueba de configuración',
+      message: error.message
+    });
+  }
+});
+
 app.get('/auth/quickbooks', async (req, res) => {
   try {
     console.log('Generando URL de autorización para QuickBooks');
