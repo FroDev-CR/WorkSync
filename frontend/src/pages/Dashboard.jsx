@@ -3,9 +3,21 @@ import { Link } from 'react-router-dom';
 import { authService, syncService } from '../services/api';
 import './Dashboard.css';
 
-const Dashboard = ({ authStatus }) => {
-  const [syncHistory, setSyncHistory] = useState([]);
+const Dashboard = () => {
+  const [authStatus, setAuthStatus] = useState({
+    jobber: { connected: false, lastSync: null },
+    quickbooks: { connected: false, lastSync: null }
+  });
+  const [syncStats, setSyncStats] = useState({
+    totalSyncs: 0,
+    successfulSyncs: 0,
+    failedSyncs: 0,
+    totalAmount: 0,
+    lastSync: null,
+    recentActivity: []
+  });
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     loadDashboardData();
@@ -13,21 +25,29 @@ const Dashboard = ({ authStatus }) => {
 
   const loadDashboardData = async () => {
     try {
-      // Cargar historial de sincronización (se implementará después)
-      // const historyResponse = await syncService.getSyncHistory();
-      // if (historyResponse.success) {
-      //   setSyncHistory(historyResponse.data);
-      // }
+      setLoading(true);
+      setError(null);
+
+      // Cargar estado de autenticación
+      const authResponse = await authService.getAuthStatus();
+      setAuthStatus(authResponse.status);
+
+      // Cargar estadísticas de sincronización
+      const statsResponse = await syncService.getSyncStats();
+      if (statsResponse.success) {
+        setSyncStats(statsResponse.stats);
+      }
     } catch (error) {
       console.error('Error cargando datos del dashboard:', error);
+      setError('Error cargando datos del dashboard');
     } finally {
       setLoading(false);
     }
   };
 
   const getConnectionStatus = () => {
-    const jobberConnected = authStatus.jobber.authenticated;
-    const quickbooksConnected = authStatus.quickbooks.authenticated;
+    const jobberConnected = authStatus.jobber.connected;
+    const quickbooksConnected = authStatus.quickbooks.connected;
     
     if (jobberConnected && quickbooksConnected) {
       return {
@@ -52,11 +72,30 @@ const Dashboard = ({ authStatus }) => {
 
   const connectionStatus = getConnectionStatus();
 
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('es-CR', {
+      style: 'currency',
+      currency: 'USD'
+    }).format(amount);
+  };
+
   if (loading) {
     return (
       <div className="dashboard-loading">
         <div className="loading-spinner"></div>
         <p>Cargando dashboard...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="dashboard-error">
+        <h3>Error</h3>
+        <p>{error}</p>
+        <button onClick={loadDashboardData} className="retry-button">
+          Reintentar
+        </button>
       </div>
     );
   }
@@ -79,20 +118,46 @@ const Dashboard = ({ authStatus }) => {
             
             <div className="platform-status">
               <div className="platform-item">
-                <span className={`platform-dot ${authStatus.jobber.authenticated ? 'connected' : 'disconnected'}`}></span>
+                <span className={`platform-dot ${authStatus.jobber.connected ? 'connected' : 'disconnected'}`}></span>
                 <span className="platform-name">Jobber</span>
                 <span className="platform-status-text">
-                  {authStatus.jobber.authenticated ? 'Conectado' : 'Desconectado'}
+                  {authStatus.jobber.connected ? 'Conectado' : 'Desconectado'}
                 </span>
               </div>
               
               <div className="platform-item">
-                <span className={`platform-dot ${authStatus.quickbooks.authenticated ? 'connected' : 'disconnected'}`}></span>
+                <span className={`platform-dot ${authStatus.quickbooks.connected ? 'connected' : 'disconnected'}`}></span>
                 <span className="platform-name">QuickBooks</span>
                 <span className="platform-status-text">
-                  {authStatus.quickbooks.authenticated ? 'Conectado' : 'Desconectado'}
+                  {authStatus.quickbooks.connected ? 'Conectado' : 'Desconectado'}
                 </span>
               </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Estadísticas de sincronización */}
+        <div className="dashboard-card sync-stats">
+          <h3>Estadísticas de Sincronización</h3>
+          <div className="stats-grid">
+            <div className="stat-item">
+              <div className="stat-number">{syncStats.totalSyncs}</div>
+              <div className="stat-label">Total Sincronizaciones</div>
+            </div>
+            
+            <div className="stat-item">
+              <div className="stat-number success">{syncStats.successfulSyncs}</div>
+              <div className="stat-label">Exitosas</div>
+            </div>
+            
+            <div className="stat-item">
+              <div className="stat-number error">{syncStats.failedSyncs}</div>
+              <div className="stat-label">Fallidas</div>
+            </div>
+            
+            <div className="stat-item">
+              <div className="stat-number amount">{formatCurrency(syncStats.totalAmount)}</div>
+              <div className="stat-label">Monto Total</div>
             </div>
           </div>
         </div>
@@ -121,16 +186,20 @@ const Dashboard = ({ authStatus }) => {
           </div>
         </div>
 
-        {/* Estadísticas recientes */}
+        {/* Actividad reciente */}
         <div className="dashboard-card recent-activity">
           <h3>Actividad Reciente</h3>
           <div className="activity-content">
-            {syncHistory.length > 0 ? (
+            {syncStats.recentActivity.length > 0 ? (
               <div className="activity-list">
-                {syncHistory.slice(0, 5).map((item, index) => (
+                {syncStats.recentActivity.slice(0, 5).map((item, index) => (
                   <div key={index} className="activity-item">
-                    <span className="activity-time">{new Date(item.createdAt).toLocaleString()}</span>
-                    <span className="activity-message">{item.message}</span>
+                    <span className="activity-time">
+                      {new Date(item.createdAt?.toDate?.() || item.createdAt).toLocaleString()}
+                    </span>
+                    <span className="activity-message">
+                      {item.status === 'success' ? '✅' : '❌'} {item.message || 'Sincronización'}
+                    </span>
                   </div>
                 ))}
               </div>

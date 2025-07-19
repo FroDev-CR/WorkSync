@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 // Configuración base de axios
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://work-sync-delta.vercel.app';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -23,64 +23,85 @@ api.interceptors.response.use(
 // Servicios de autenticación
 export const authService = {
   // Obtener estado de autenticación
-  async getAuthStatus() {
-    const response = await api.get('/auth/status');
+  async getAuthStatus(userId = 'default-user') {
+    const response = await api.get('/auth/status', { params: { userId } });
     return response.data;
   },
 
   // Obtener URL de autorización para Jobber
-  async getJobberAuthUrl(state = null) {
-    const params = state ? { state } : {};
-    const response = await api.get('/auth/jobber/url', { params });
+  async getJobberAuthUrl(userId = 'default-user') {
+    const response = await api.get('/auth/jobber', { params: { userId } });
     return response.data;
   },
 
   // Obtener URL de autorización para QuickBooks
-  async getQuickBooksAuthUrl(state = null) {
-    const params = state ? { state } : {};
-    const response = await api.get('/auth/quickbooks/url', { params });
-    return response.data;
-  },
-
-  // Refrescar tokens
-  async refreshTokens(platform) {
-    const response = await api.post(`/auth/refresh/${platform}`);
+  async getQuickBooksAuthUrl(userId = 'default-user') {
+    const response = await api.get('/auth/quickbooks', { params: { userId } });
     return response.data;
   },
 
   // Desconectar plataforma
-  async disconnectPlatform(platform) {
-    const response = await api.post(`/auth/disconnect/${platform}`);
+  async disconnectPlatform(platform, userId = 'default-user') {
+    const response = await api.post('/auth/disconnect', { provider: platform, userId });
     return response.data;
   },
 };
 
-// Servicios de Jobs (se implementarán después)
+// Servicios de Jobs
 export const jobsService = {
-  // Obtener Jobs de Jobber
-  async getJobberJobs() {
-    const response = await api.get('/jobs/jobber');
+  // Obtener todos los Jobs
+  async getJobs(userId = 'default-user', options = {}) {
+    const response = await api.get('/jobs', { 
+      params: { userId, ...options } 
+    });
     return response.data;
   },
 
-  // Sincronizar Jobs a QuickBooks
-  async syncJobsToQuickBooks(jobIds) {
-    const response = await api.post('/sync/jobber-to-quickbooks', { jobIds });
+  // Obtener Jobs recientes
+  async getRecentJobs(userId = 'default-user') {
+    const response = await api.get('/jobs/recent', { params: { userId } });
+    return response.data;
+  },
+
+  // Obtener Jobs pendientes de sincronización
+  async getPendingJobs(userId = 'default-user') {
+    const response = await api.get('/jobs/pending', { params: { userId } });
     return response.data;
   },
 };
 
-// Servicios de sincronización (se implementarán después)
+// Servicios de sincronización
 export const syncService = {
-  // Obtener historial de sincronización
-  async getSyncHistory() {
-    const response = await api.get('/sync/history');
+  // Sincronizar un Job específico
+  async syncJob(jobId, userId = 'default-user') {
+    const response = await api.post('/sync/job', { jobId, userId });
     return response.data;
   },
 
-  // Obtener logs de errores
-  async getErrorLogs() {
-    const response = await api.get('/sync/errors');
+  // Sincronizar múltiples Jobs
+  async syncMultipleJobs(jobIds, userId = 'default-user') {
+    const response = await api.post('/sync/multiple', { jobIds, userId });
+    return response.data;
+  },
+
+  // Sincronizar Jobs pendientes automáticamente
+  async syncPendingJobs(userId = 'default-user') {
+    const response = await api.post('/sync/pending', { userId });
+    return response.data;
+  },
+
+  // Obtener estadísticas de sincronización
+  async getSyncStats(userId = 'default-user') {
+    const response = await api.get('/sync/stats', { params: { userId } });
+    return response.data;
+  },
+};
+
+// Servicio de salud de la API
+export const healthService = {
+  // Verificar estado de la API
+  async getHealth() {
+    const response = await api.get('/health');
     return response.data;
   },
 };
