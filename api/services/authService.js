@@ -8,12 +8,12 @@ const OAUTH_CONFIG = {
     clientId: process.env.JOBBER_CLIENT_ID,
     clientSecret: process.env.JOBBER_CLIENT_SECRET,
     apiKey: process.env.JOBBER_API_KEY,
-    authUrl: 'https://secure.getjobber.com/oauth/authorize',
-    tokenUrl: 'https://api.getjobber.com/oauth/token',
+    authUrl: 'https://api.getjobber.com/api/oauth/authorize',
+    tokenUrl: 'https://api.getjobber.com/api/oauth/token',
     redirectUri: process.env.JOBBER_REDIRECT_URI,
     scope: 'jobs.read jobs.write',
-    // Jobber usa API Key en lugar de OAuth2
-    useApiKey: true
+    // Jobber usa OAuth2 pero con URL específica
+    useApiKey: false
   },
   quickbooks: {
     clientId: process.env.QUICKBOOKS_CLIENT_ID,
@@ -165,18 +165,11 @@ const checkConnectionStatus = async (userId) => {
   };
 
   try {
-    // Verificar Jobber (usando API Key)
-    const jobberConfig = OAUTH_CONFIG.jobber;
-    if (jobberConfig.useApiKey && jobberConfig.apiKey) {
+    // Verificar Jobber (OAuth2)
+    const jobberToken = await getToken(userId, 'jobber');
+    if (jobberToken && jobberToken.access_token) {
       status.jobber.connected = true;
-      status.jobber.lastSync = new Date().toISOString();
-    } else {
-      // Fallback a OAuth2 si no hay API Key
-      const jobberToken = await getToken(userId, 'jobber');
-      if (jobberToken && jobberToken.access_token) {
-        status.jobber.connected = true;
-        status.jobber.lastSync = jobberToken.updatedAt;
-      }
+      status.jobber.lastSync = jobberToken.updatedAt;
     }
   } catch (error) {
     console.error('Error verificando conexión de Jobber:', error);

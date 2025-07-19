@@ -493,24 +493,32 @@ app.post('/auth/jobber/api-key', async (req, res) => {
 // Verificar configuración de Jobber con API Key
 app.get('/auth/jobber/config', async (req, res) => {
   try {
-    const apiKey = process.env.JOBBER_API_KEY;
+    const clientId = process.env.JOBBER_CLIENT_ID;
+    const redirectUri = process.env.JOBBER_REDIRECT_URI;
+    
+    // Generar URL de prueba con la URL correcta
+    const testUrl = `https://api.getjobber.com/api/oauth/authorize?client_id=${clientId}&response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}&scope=jobs.read+jobs.write&state=test`;
     
     res.json({
       success: true,
       config: {
-        hasApiKey: !!apiKey,
-        apiKeyConfigured: apiKey ? 'CONFIGURADO' : 'NO CONFIGURADO',
-        useApiKey: true,
-        instructions: [
-          '1. Obtén tu API Key desde Jobber Developer Portal',
-          '2. Configúrala usando el endpoint POST /auth/jobber/api-key',
-          '3. O configúrala como variable de entorno JOBBER_API_KEY en Vercel'
-        ]
+        clientId: clientId,
+        redirectUri: redirectUri,
+        testUrl: testUrl,
+        authUrl: 'https://api.getjobber.com/api/oauth/authorize',
+        tokenUrl: 'https://api.getjobber.com/api/oauth/token'
       },
+      instructions: [
+        '1. Verifica que el Client ID sea correcto en Jobber Developer Portal',
+        '2. Asegúrate de que la URL de redirección esté configurada en Jobber',
+        '3. La URL debe ser exactamente: https://work-sync-delta.vercel.app/auth/callback',
+        '4. Prueba la URL de test generada arriba',
+        '5. Jobber usa OAuth2 con URLs específicas de la API'
+      ],
       message: 'Configuración de Jobber verificada'
     });
   } catch (error) {
-    console.error('Error verificando configuración de Jobber:', error);
+    console.error('Error verificando configuración:', error);
     res.status(500).json({
       error: 'Error verificando configuración',
       message: error.message
