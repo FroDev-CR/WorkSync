@@ -496,8 +496,12 @@ app.get('/auth/jobber/config', async (req, res) => {
     const clientId = process.env.JOBBER_CLIENT_ID;
     const redirectUri = process.env.JOBBER_REDIRECT_URI;
     
+    // Generar state JSON válido
+    const stateData = JSON.stringify({ provider: 'jobber', userId: 'test-user' });
+    const encodedState = encodeURIComponent(stateData);
+    
     // Generar URL de prueba con la URL correcta
-    const testUrl = `https://api.getjobber.com/api/oauth/authorize?client_id=${clientId}&response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}&scope=jobs.read+jobs.write&state=test`;
+    const testUrl = `https://api.getjobber.com/api/oauth/authorize?client_id=${clientId}&response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}&scope=jobs.read+jobs.write&state=${encodedState}`;
     
     res.json({
       success: true,
@@ -506,7 +510,9 @@ app.get('/auth/jobber/config', async (req, res) => {
         redirectUri: redirectUri,
         testUrl: testUrl,
         authUrl: 'https://api.getjobber.com/api/oauth/authorize',
-        tokenUrl: 'https://api.getjobber.com/api/oauth/token'
+        tokenUrl: 'https://api.getjobber.com/api/oauth/token',
+        stateData: stateData,
+        encodedState: encodedState
       },
       instructions: [
         '1. Verifica que el Client ID sea correcto en Jobber Developer Portal',
