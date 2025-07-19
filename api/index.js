@@ -532,6 +532,48 @@ app.get('/auth/jobber/config', async (req, res) => {
   }
 });
 
+// Verificar configuración de QuickBooks
+app.get('/auth/quickbooks/config', async (req, res) => {
+  try {
+    const clientId = process.env.QUICKBOOKS_CLIENT_ID;
+    const redirectUri = process.env.QUICKBOOKS_REDIRECT_URI;
+    
+    // Generar state JSON válido
+    const stateData = JSON.stringify({ provider: 'quickbooks', userId: 'test-user' });
+    const encodedState = encodeURIComponent(stateData);
+    
+    // Generar URL de prueba
+    const testUrl = `https://appcenter.intuit.com/connect/oauth2?client_id=${clientId}&response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}&scope=com.intuit.quickbooks.accounting&state=${encodedState}`;
+    
+    res.json({
+      success: true,
+      config: {
+        clientId: clientId,
+        redirectUri: redirectUri,
+        testUrl: testUrl,
+        authUrl: 'https://appcenter.intuit.com/connect/oauth2',
+        tokenUrl: 'https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer',
+        stateData: stateData,
+        encodedState: encodedState
+      },
+      instructions: [
+        '1. Verifica que el Client ID sea correcto en QuickBooks Developer Portal',
+        '2. Asegúrate de que la URL de redirección esté configurada en QuickBooks',
+        '3. La URL debe ser exactamente: https://work-sync-delta.vercel.app/auth/callback',
+        '4. Prueba la URL de test generada arriba',
+        '5. QuickBooks usa OAuth2 estándar'
+      ],
+      message: 'Configuración de QuickBooks verificada'
+    });
+  } catch (error) {
+    console.error('Error verificando configuración de QuickBooks:', error);
+    res.status(500).json({
+      error: 'Error verificando configuración',
+      message: error.message
+    });
+  }
+});
+
 // Manejo de rutas no encontradas
 app.use('*', (req, res) => {
   console.log(`Ruta no encontrada: ${req.originalUrl}`);
