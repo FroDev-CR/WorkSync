@@ -51,10 +51,20 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Importar rutas
-app.use('/auth', require('./backend/routes/auth'));
-// app.use('/jobs', require('./backend/routes/jobs'));
-// app.use('/sync', require('./backend/routes/sync'));
+// Rutas de autenticación básicas
+app.get('/auth/jobber', (req, res) => {
+  res.json({ 
+    message: 'Jobber OAuth endpoint',
+    status: 'ready'
+  });
+});
+
+app.get('/auth/quickbooks', (req, res) => {
+  res.json({ 
+    message: 'QuickBooks OAuth endpoint',
+    status: 'ready'
+  });
+});
 
 // Middleware de manejo de errores
 app.use((err, req, res, next) => {
