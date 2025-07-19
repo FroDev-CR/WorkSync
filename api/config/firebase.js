@@ -1,6 +1,14 @@
 // Configuración de Firebase Admin SDK (versión simplificada)
 let db = null;
 
+// Logging para debugging
+console.log('=== DEBUGGING FIREBASE CONFIG ===');
+console.log('NODE_ENV:', process.env.NODE_ENV);
+console.log('FIREBASE_PROJECT_ID:', process.env.FIREBASE_PROJECT_ID ? 'SET' : 'NOT SET');
+console.log('JOBBER_CLIENT_ID:', process.env.JOBBER_CLIENT_ID ? 'SET' : 'NOT SET');
+console.log('QUICKBOOKS_CLIENT_ID:', process.env.QUICKBOOKS_CLIENT_ID ? 'SET' : 'NOT SET');
+console.log('================================');
+
 // Inicializar Firebase Admin SDK
 try {
   const admin = require('firebase-admin');
