@@ -147,10 +147,17 @@ app.get('/auth/callback', async (req, res) => {
   try {
     const { code, state } = req.query;
     
+    console.log('=== CALLBACK OAUTH DEBUG ===');
+    console.log('Query parameters:', req.query);
+    console.log('Code:', code ? 'PRESENTE' : 'AUSENTE');
+    console.log('State:', state ? 'PRESENTE' : 'AUSENTE');
+    console.log('============================');
+    
     if (!code || !state) {
       return res.status(400).json({
         error: 'Parámetros faltantes',
-        message: 'Se requiere code y state'
+        message: 'Se requiere code y state',
+        received: { code: !!code, state: !!state }
       });
     }
 
