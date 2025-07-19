@@ -14,7 +14,7 @@ app.use(helmet());
 // Configuración de CORS
 app.use(cors({
   origin: process.env.NODE_ENV === 'production' 
-    ? ['https://tu-dominio.vercel.app'] 
+    ? ['https://work-sync-delta.vercel.app'] 
     : ['http://localhost:5173', 'http://localhost:3000'],
   credentials: true
 }));
