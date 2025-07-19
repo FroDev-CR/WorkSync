@@ -1,4 +1,4 @@
-// Versión mínima para diagnosticar el problema
+// Versión específica para Vercel serverless functions
 const express = require('express');
 
 const app = express();
@@ -102,5 +102,8 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Exportar para Vercel
-module.exports = app; 
+// Función específica para Vercel
+module.exports = (req, res) => {
+  console.log('Función Vercel llamada:', req.url);
+  return app(req, res);
+}; 
