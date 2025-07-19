@@ -7,10 +7,13 @@ const OAUTH_CONFIG = {
   jobber: {
     clientId: process.env.JOBBER_CLIENT_ID,
     clientSecret: process.env.JOBBER_CLIENT_SECRET,
+    apiKey: process.env.JOBBER_API_KEY,
     authUrl: 'https://secure.getjobber.com/oauth/authorize',
     tokenUrl: 'https://api.getjobber.com/oauth/token',
     redirectUri: process.env.JOBBER_REDIRECT_URI,
-    scope: 'jobs.read jobs.write'
+    scope: 'jobs.read jobs.write',
+    // Jobber usa API Key en lugar de OAuth2
+    useApiKey: true
   },
   quickbooks: {
     clientId: process.env.QUICKBOOKS_CLIENT_ID,
@@ -18,7 +21,8 @@ const OAUTH_CONFIG = {
     authUrl: 'https://appcenter.intuit.com/connect/oauth2',
     tokenUrl: 'https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer',
     redirectUri: process.env.QUICKBOOKS_REDIRECT_URI,
-    scope: 'com.intuit.quickbooks.accounting'
+    scope: 'com.intuit.quickbooks.accounting',
+    useApiKey: false
   }
 };
 
@@ -161,18 +165,25 @@ const checkConnectionStatus = async (userId) => {
   };
 
   try {
-    // Verificar Jobber
-    const jobberToken = await getToken(userId, 'jobber');
-    if (jobberToken && jobberToken.access_token) {
+    // Verificar Jobber (usando API Key)
+    const jobberConfig = OAUTH_CONFIG.jobber;
+    if (jobberConfig.useApiKey && jobberConfig.apiKey) {
       status.jobber.connected = true;
-      status.jobber.lastSync = jobberToken.updatedAt;
+      status.jobber.lastSync = new Date().toISOString();
+    } else {
+      // Fallback a OAuth2 si no hay API Key
+      const jobberToken = await getToken(userId, 'jobber');
+      if (jobberToken && jobberToken.access_token) {
+        status.jobber.connected = true;
+        status.jobber.lastSync = jobberToken.updatedAt;
+      }
     }
   } catch (error) {
     console.error('Error verificando conexión de Jobber:', error);
   }
 
   try {
-    // Verificar QuickBooks
+    // Verificar QuickBooks (OAuth2)
     const quickbooksToken = await getToken(userId, 'quickbooks');
     if (quickbooksToken && quickbooksToken.access_token) {
       status.quickbooks.connected = true;

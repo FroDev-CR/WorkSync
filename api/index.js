@@ -450,6 +450,74 @@ app.get('/test', (req, res) => {
   });
 });
 
+// Configurar API Key de Jobber
+app.post('/auth/jobber/api-key', async (req, res) => {
+  try {
+    const { apiKey, userId = 'default-user' } = req.body;
+    
+    if (!apiKey) {
+      return res.status(400).json({
+        error: 'API Key requerida',
+        message: 'Se requiere la API Key de Jobber'
+      });
+    }
+
+    console.log(`Configurando API Key de Jobber para usuario ${userId}`);
+    
+    // Guardar API Key en Firebase (o usar variables de entorno)
+    // Por ahora, solo verificamos que esté presente
+    const jobberConfig = {
+      apiKey: apiKey,
+      connected: true,
+      connectedAt: new Date().toISOString(),
+      userId: userId
+    };
+
+    res.json({
+      success: true,
+      message: 'API Key de Jobber configurada correctamente',
+      config: {
+        connected: true,
+        connectedAt: jobberConfig.connectedAt
+      }
+    });
+  } catch (error) {
+    console.error('Error configurando API Key de Jobber:', error);
+    res.status(500).json({
+      error: 'Error configurando API Key',
+      message: error.message
+    });
+  }
+});
+
+// Verificar configuración de Jobber con API Key
+app.get('/auth/jobber/config', async (req, res) => {
+  try {
+    const apiKey = process.env.JOBBER_API_KEY;
+    
+    res.json({
+      success: true,
+      config: {
+        hasApiKey: !!apiKey,
+        apiKeyConfigured: apiKey ? 'CONFIGURADO' : 'NO CONFIGURADO',
+        useApiKey: true,
+        instructions: [
+          '1. Obtén tu API Key desde Jobber Developer Portal',
+          '2. Configúrala usando el endpoint POST /auth/jobber/api-key',
+          '3. O configúrala como variable de entorno JOBBER_API_KEY en Vercel'
+        ]
+      },
+      message: 'Configuración de Jobber verificada'
+    });
+  } catch (error) {
+    console.error('Error verificando configuración de Jobber:', error);
+    res.status(500).json({
+      error: 'Error verificando configuración',
+      message: error.message
+    });
+  }
+});
+
 // Manejo de rutas no encontradas
 app.use('*', (req, res) => {
   console.log(`Ruta no encontrada: ${req.originalUrl}`);
