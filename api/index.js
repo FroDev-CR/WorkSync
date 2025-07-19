@@ -94,10 +94,4 @@ app.use((err, req, res, next) => {
 });
 
 // Exportar para Vercel
-module.exports = app;
-
-// Handler para Vercel serverless functions
-module.exports.handler = (req, res) => {
-  console.log('Handler de Vercel llamado');
-  return app(req, res);
-}; 
+module.exports = app; 
