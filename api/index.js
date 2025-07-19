@@ -123,6 +123,39 @@ app.get('/auth/jobber/debug', async (req, res) => {
   }
 });
 
+// Endpoint para verificar configuración de Jobber
+app.get('/auth/jobber/verify', async (req, res) => {
+  try {
+    const clientId = process.env.JOBBER_CLIENT_ID;
+    const redirectUri = process.env.JOBBER_REDIRECT_URI;
+    
+    // Generar URL de prueba
+    const testUrl = `https://secure.getjobber.com/oauth/authorize?client_id=${clientId}&response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}&scope=jobs.read+jobs.write&state=test`;
+    
+    res.json({
+      success: true,
+      config: {
+        clientId: clientId,
+        redirectUri: redirectUri,
+        testUrl: testUrl
+      },
+      instructions: [
+        '1. Verifica que el Client ID sea correcto en Jobber Developer Portal',
+        '2. Asegúrate de que la URL de redirección esté configurada en Jobber',
+        '3. La URL debe ser exactamente: https://work-sync-delta.vercel.app/auth/callback',
+        '4. Prueba la URL de test generada arriba'
+      ],
+      message: 'Configuración verificada'
+    });
+  } catch (error) {
+    console.error('Error verificando configuración:', error);
+    res.status(500).json({
+      error: 'Error verificando configuración',
+      message: error.message
+    });
+  }
+});
+
 app.get('/auth/quickbooks', async (req, res) => {
   try {
     console.log('Generando URL de autorización para QuickBooks');
