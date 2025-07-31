@@ -556,7 +556,7 @@ app.get('/auth/jobber/config', async (req, res) => {
     const encodedState = encodeURIComponent(stateData);
     
     // Generar URL de prueba con la URL correcta
-    const testUrl = `https://api.getjobber.com/api/oauth/authorize?client_id=${clientId}&response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}&scope=jobs.read+jobs.write&state=${encodedState}`;
+    const testUrl = `https://secure.getjobber.com/oauth/authorize?client_id=${clientId}&response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}&scope=jobs.read+jobs.write&state=${encodedState}`;
     
     res.json({
       success: true,
@@ -564,8 +564,8 @@ app.get('/auth/jobber/config', async (req, res) => {
         clientId: clientId,
         redirectUri: redirectUri,
         testUrl: testUrl,
-        authUrl: 'https://api.getjobber.com/api/oauth/authorize',
-        tokenUrl: 'https://api.getjobber.com/api/oauth/token',
+        authUrl: 'https://secure.getjobber.com/oauth/authorize',
+        tokenUrl: 'https://secure.getjobber.com/oauth/token',
         stateData: stateData,
         encodedState: encodedState
       },
