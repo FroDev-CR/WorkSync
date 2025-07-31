@@ -1,4 +1,4 @@
-// API principal de WorkSync
+// API principal de WorkSync - VERSIÓN CORREGIDA PARA PRODUCCIÓN
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
@@ -9,163 +9,98 @@ const { syncJob, syncMultipleJobs, syncPendingJobs, getSyncStats } = require('./
 
 const app = express();
 
-// Configuración CORS para frontend separado
+// Configuración CORS más permisiva para producción
 const corsOptions = {
   origin: [
     'http://localhost:5173', // Desarrollo local
     'http://localhost:3000', // Desarrollo alternativo
-    process.env.FRONTEND_URL, // URL del frontend en producción
-    'https://tu-frontend-aqui.netlify.app', // URL específica de Netlify
-    // Agregar más orígenes según necesites
-  ].filter(Boolean), // Eliminar valores undefined
+    'https://work-sync-delta.vercel.app', // Tu dominio de Vercel
+    process.env.FRONTEND_URL, // URL del frontend desde .env
+  ].filter(Boolean),
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  optionsSuccessStatus: 200
 };
 
 // Middleware básico
-app.use(express.json());
 app.use(cors(corsOptions));
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-// Logging middleware
+// Logging middleware mejorado
 app.use((req, res, next) => {
-  console.log(`${new Date().toISOString()} - ${req.method} ${req.url} - ${req.originalUrl}`);
+  const timestamp = new Date().toISOString();
+  const method = req.method;
+  const url = req.url;
+  const userAgent = req.get('User-Agent') || 'Unknown';
+  
+  console.log(`${timestamp} - ${method} ${url} - ${userAgent.substring(0, 50)}`);
+  
+  // Log de headers importantes para debug
+  if (req.method !== 'GET') {
+    console.log(`📦 Body:`, req.body);
+  }
+  
   next();
 });
 
-// Rutas básicas
-app.get('/', (req, res) => {
-  console.log('Accediendo a la ruta raíz');
-  res.json({ 
-    message: 'WorkSync API está funcionando!',
-    version: '1.0.0',
-    status: 'online',
+// Manejo de errores global
+app.use((err, req, res, next) => {
+  console.error('🚨 Error global:', err);
+  res.status(500).json({
+    error: 'Error interno del servidor',
+    message: process.env.NODE_ENV === 'development' ? err.message : 'Something went wrong',
     timestamp: new Date().toISOString()
   });
 });
 
+// Rutas básicas
+app.get('/', (req, res) => {
+  console.log('🏠 Accediendo a la ruta raíz');
+  res.json({ 
+    message: 'WorkSync API está funcionando!',
+    version: '1.0.0',
+    status: 'online',
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || 'development'
+  });
+});
+
 app.get('/health', (req, res) => {
-  console.log('Accediendo a /health');
+  console.log('❤️ Health check solicitado');
   res.json({ 
     status: 'healthy',
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
-    environment: process.env.NODE_ENV || 'development'
+    environment: process.env.NODE_ENV || 'development',
+    config: {
+      jobber_configured: !!process.env.JOBBER_CLIENT_ID,
+      quickbooks_configured: !!process.env.QUICKBOOKS_CLIENT_ID,
+      firebase_configured: !!process.env.FIREBASE_PROJECT_ID,
+      frontend_url: process.env.FRONTEND_URL
+    }
   });
 });
 
 // Rutas de autenticación OAuth2
 app.get('/auth/jobber', async (req, res) => {
   try {
-    console.log('Generando URL de autorización para Jobber');
+    console.log('🔗 Generando URL de autorización para Jobber');
     const userId = req.query.userId || 'default-user';
     const authUrl = generateAuthUrl('jobber', userId);
+    
     res.json({ 
+      success: true,
       authUrl,
       provider: 'jobber',
-      message: 'URL de autorización generada'
+      message: 'URL de autorización generada correctamente'
     });
   } catch (error) {
-    console.error('Error generando URL de Jobber:', error);
+    console.error('❌ Error generando URL de Jobber:', error);
     res.status(500).json({
+      success: false,
       error: 'Error generando URL de autorización',
-      message: error.message
-    });
-  }
-});
-
-// Endpoint de prueba para Jobber
-app.get('/auth/jobber/test', async (req, res) => {
-  try {
-    console.log('=== PRUEBA DE CONFIGURACIÓN JOBBER ===');
-    console.log('JOBBER_CLIENT_ID:', process.env.JOBBER_CLIENT_ID ? 'CONFIGURADO' : 'NO CONFIGURADO');
-    console.log('JOBBER_CLIENT_SECRET:', process.env.JOBBER_CLIENT_SECRET ? 'CONFIGURADO' : 'NO CONFIGURADO');
-    console.log('JOBBER_REDIRECT_URI:', process.env.JOBBER_REDIRECT_URI || 'NO CONFIGURADO');
-    console.log('=====================================');
-    
-    const userId = req.query.userId || 'test-user';
-    const authUrl = generateAuthUrl('jobber', userId);
-    
-    res.json({
-      success: true,
-      config: {
-        clientId: process.env.JOBBER_CLIENT_ID ? 'CONFIGURADO' : 'NO CONFIGURADO',
-        clientSecret: process.env.JOBBER_CLIENT_SECRET ? 'CONFIGURADO' : 'NO CONFIGURADO',
-        redirectUri: process.env.JOBBER_REDIRECT_URI || 'NO CONFIGURADO'
-      },
-      authUrl,
-      message: 'Configuración de Jobber verificada'
-    });
-  } catch (error) {
-    console.error('Error en prueba de Jobber:', error);
-    res.status(500).json({
-      error: 'Error en prueba de configuración',
-      message: error.message
-    });
-  }
-});
-
-// Endpoint de prueba detallado para Jobber
-app.get('/auth/jobber/debug', async (req, res) => {
-  try {
-    const redirectUri = process.env.JOBBER_REDIRECT_URI;
-    const clientId = process.env.JOBBER_CLIENT_ID;
-    const clientSecret = process.env.JOBBER_CLIENT_SECRET;
-    
-    console.log('=== DEBUG DETALLADO JOBBER ===');
-    console.log('Valor exacto de JOBBER_REDIRECT_URI:', JSON.stringify(redirectUri));
-    console.log('Valor exacto de JOBBER_CLIENT_ID:', JSON.stringify(clientId));
-    console.log('Valor exacto de JOBBER_CLIENT_SECRET:', JSON.stringify(clientSecret));
-    console.log('=====================================');
-    
-    res.json({
-      success: true,
-      debug: {
-        redirectUri: redirectUri,
-        clientId: clientId,
-        clientSecret: clientSecret ? 'CONFIGURADO' : 'NO CONFIGURADO',
-        redirectUriLength: redirectUri ? redirectUri.length : 0,
-        hasRedirectUri: !!redirectUri
-      },
-      message: 'Debug detallado de configuración'
-    });
-  } catch (error) {
-    console.error('Error en debug de Jobber:', error);
-    res.status(500).json({
-      error: 'Error en debug',
-      message: error.message
-    });
-  }
-});
-
-// Endpoint para verificar configuración de Jobber
-app.get('/auth/jobber/verify', async (req, res) => {
-  try {
-    const clientId = process.env.JOBBER_CLIENT_ID;
-    const redirectUri = process.env.JOBBER_REDIRECT_URI;
-    
-    // Generar URL de prueba
-    const testUrl = `https://secure.getjobber.com/oauth/authorize?client_id=${clientId}&response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}&scope=jobs.read+jobs.write&state=test`;
-    
-    res.json({
-      success: true,
-      config: {
-        clientId: clientId,
-        redirectUri: redirectUri,
-        testUrl: testUrl
-      },
-      instructions: [
-        '1. Verifica que el Client ID sea correcto en Jobber Developer Portal',
-        '2. Asegúrate de que la URL de redirección esté configurada en Jobber',
-        '3. La URL debe ser exactamente: https://work-sync-delta.vercel.app/auth/callback',
-        '4. Prueba la URL de test generada arriba'
-      ],
-      message: 'Configuración verificada'
-    });
-  } catch (error) {
-    console.error('Error verificando configuración:', error);
-    res.status(500).json({
-      error: 'Error verificando configuración',
       message: error.message
     });
   }
@@ -173,92 +108,94 @@ app.get('/auth/jobber/verify', async (req, res) => {
 
 app.get('/auth/quickbooks', async (req, res) => {
   try {
-    console.log('Generando URL de autorización para QuickBooks');
+    console.log('🔗 Generando URL de autorización para QuickBooks');
     const userId = req.query.userId || 'default-user';
     const authUrl = generateAuthUrl('quickbooks', userId);
+    
     res.json({ 
+      success: true,
       authUrl,
       provider: 'quickbooks',
-      message: 'URL de autorización generada'
+      message: 'URL de autorización generada correctamente'
     });
   } catch (error) {
-    console.error('Error generando URL de QuickBooks:', error);
+    console.error('❌ Error generando URL de QuickBooks:', error);
     res.status(500).json({
+      success: false,
       error: 'Error generando URL de autorización',
       message: error.message
     });
   }
 });
 
-// Callbacks de OAuth2
+// Callback OAuth2 universal - CRÍTICO PARA QUE FUNCIONE
 app.get('/auth/callback', async (req, res) => {
-  console.log('🔄 CALLBACK INICIADO');
-  console.log('Headers:', req.headers);
-  console.log('URL completa:', req.url);
+  console.log('🔄 CALLBACK OAuth iniciado');
+  console.log('🔍 Query params:', JSON.stringify(req.query, null, 2));
+  console.log('🔍 Headers relevantes:', {
+    'user-agent': req.get('User-Agent'),
+    'referer': req.get('Referer'),
+    'origin': req.get('Origin')
+  });
   
   try {
     const { code, state, realmId, error: oauthError, error_description } = req.query;
     
-    console.log('=== CALLBACK OAUTH DEBUG ===');
-    console.log('Query parameters:', JSON.stringify(req.query, null, 2));
-    console.log('Code:', code ? 'PRESENTE' : 'AUSENTE');
-    console.log('State:', state ? 'PRESENTE' : 'AUSENTE');
-    console.log('RealmId (QB):', realmId ? 'PRESENTE' : 'AUSENTE');
-    console.log('OAuth Error:', oauthError || 'NINGUNO');
-    console.log('Variables de entorno:');
-    console.log('- FRONTEND_URL:', process.env.FRONTEND_URL);
-    console.log('- NODE_ENV:', process.env.NODE_ENV);
-    console.log('============================');
-    
     // Manejar errores OAuth
     if (oauthError) {
-      console.error('Error OAuth recibido:', oauthError, error_description);
+      console.error('❌ Error OAuth recibido:', oauthError, error_description);
       const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
       return res.redirect(`${frontendUrl}/settings?error=${encodeURIComponent(oauthError)}&description=${encodeURIComponent(error_description || 'Error de autorización')}`);
     }
     
     if (!code || !state) {
       const errorMsg = 'Parámetros OAuth faltantes';
-      console.error(errorMsg, { code: !!code, state: !!state });
+      console.error('❌', errorMsg, { code: !!code, state: !!state });
       const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
       return res.redirect(`${frontendUrl}/settings?error=${encodeURIComponent('missing_parameters')}&description=${encodeURIComponent(errorMsg)}`);
     }
 
+    // Parsear state
     let stateData;
     try {
-      stateData = JSON.parse(decodeURIComponent(state));
+      const decodedState = decodeURIComponent(state);
+      console.log('🔍 State decodificado:', decodedState);
+      stateData = JSON.parse(decodedState);
+      console.log('✅ State parseado:', stateData);
     } catch (parseError) {
-      console.error('Error parseando state:', parseError);
+      console.error('❌ Error parseando state:', parseError);
       const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
       return res.redirect(`${frontendUrl}/settings?error=${encodeURIComponent('invalid_state')}&description=${encodeURIComponent('State parameter inválido')}`);
     }
     
     const { provider, userId } = stateData;
+    console.log(`🔄 Procesando callback de ${provider} para usuario ${userId}`);
 
-    console.log(`Procesando callback de ${provider} para usuario ${userId}`);
-
-    // Para QuickBooks, incluir el realmId en los parámetros del token
+    // Para QuickBooks, incluir el realmId
     const additionalParams = {};
     if (provider === 'quickbooks' && realmId) {
       additionalParams.realmId = realmId;
+      console.log('🏢 QuickBooks Company ID (realmId):', realmId);
     }
 
-    console.log('🔄 Intentando intercambiar código por token...');
+    console.log('🔄 Intercambiando código por token...');
     const tokenData = await exchangeCodeForToken(provider, code, userId, additionalParams);
-    console.log('✅ Token obtenido exitosamente');
+    console.log('✅ Token obtenido e intercambiado exitosamente');
 
-    console.log(`✅ ${provider} conectado exitosamente para usuario ${userId}`);
-    
-    // Redirigir al frontend con mensaje de éxito
+    // Redirigir al frontend con éxito
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
     const redirectUrl = `${frontendUrl}/settings?connected=${provider}&success=true`;
     
-    console.log(`🔄 Redirigiendo a frontend: ${redirectUrl}`);
+    console.log(`🎯 Redirigiendo a frontend: ${redirectUrl}`);
     res.redirect(redirectUrl);
-    return;
     
   } catch (error) {
-    console.error('❌ Error en callback OAuth:', error);
+    console.error('❌ Error crítico en callback OAuth:', {
+      message: error.message,
+      stack: error.stack,
+      response: error.response?.data
+    });
+    
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
     return res.redirect(`${frontendUrl}/settings?error=${encodeURIComponent('internal_error')}&description=${encodeURIComponent('Error procesando autorización: ' + error.message)}`);
   }
@@ -268,18 +205,20 @@ app.get('/auth/callback', async (req, res) => {
 app.get('/auth/status', async (req, res) => {
   try {
     const userId = req.query.userId || 'default-user';
-    console.log(`Verificando estado de conexiones para usuario ${userId}`);
+    console.log(`📊 Verificando estado de conexiones para usuario ${userId}`);
     
     const status = await checkConnectionStatus(userId);
     
     res.json({
+      success: true,
       userId,
       status,
       timestamp: new Date().toISOString()
     });
   } catch (error) {
-    console.error('Error verificando estado:', error);
+    console.error('❌ Error verificando estado:', error);
     res.status(500).json({
+      success: false,
       error: 'Error verificando estado de conexiones',
       message: error.message
     });
@@ -293,19 +232,24 @@ app.post('/auth/disconnect', async (req, res) => {
     
     if (!provider || !userId) {
       return res.status(400).json({
+        success: false,
         error: 'Parámetros faltantes',
         message: 'Se requiere provider y userId'
       });
     }
 
-    console.log(`Desconectando ${provider} para usuario ${userId}`);
+    console.log(`🔌 Desconectando ${provider} para usuario ${userId}`);
     
     const result = await disconnectProvider(provider, userId);
     
-    res.json(result);
+    res.json({
+      success: true,
+      ...result
+    });
   } catch (error) {
-    console.error('Error desconectando proveedor:', error);
+    console.error('❌ Error desconectando proveedor:', error);
     res.status(500).json({
+      success: false,
       error: 'Error desconectando proveedor',
       message: error.message
     });
@@ -318,7 +262,7 @@ app.get('/jobs', async (req, res) => {
     const userId = req.query.userId || 'default-user';
     const { page, perPage, status, dateFrom, dateTo } = req.query;
     
-    console.log(`Obteniendo Jobs para usuario ${userId}`);
+    console.log(`📋 Obteniendo Jobs para usuario ${userId}`);
     
     const jobs = await getJobs(userId, {
       page: parseInt(page) || 1,
@@ -335,8 +279,9 @@ app.get('/jobs', async (req, res) => {
       total: jobs.total
     });
   } catch (error) {
-    console.error('Error obteniendo Jobs:', error);
+    console.error('❌ Error obteniendo Jobs:', error);
     res.status(500).json({
+      success: false,
       error: 'Error obteniendo Jobs',
       message: error.message
     });
@@ -346,7 +291,7 @@ app.get('/jobs', async (req, res) => {
 app.get('/jobs/recent', async (req, res) => {
   try {
     const userId = req.query.userId || 'default-user';
-    console.log(`Obteniendo Jobs recientes para usuario ${userId}`);
+    console.log(`📋 Obteniendo Jobs recientes para usuario ${userId}`);
     
     const jobs = await getRecentJobs(userId);
     
@@ -356,8 +301,9 @@ app.get('/jobs/recent', async (req, res) => {
       total: jobs.total
     });
   } catch (error) {
-    console.error('Error obteniendo Jobs recientes:', error);
+    console.error('❌ Error obteniendo Jobs recientes:', error);
     res.status(500).json({
+      success: false,
       error: 'Error obteniendo Jobs recientes',
       message: error.message
     });
@@ -367,7 +313,7 @@ app.get('/jobs/recent', async (req, res) => {
 app.get('/jobs/pending', async (req, res) => {
   try {
     const userId = req.query.userId || 'default-user';
-    console.log(`Obteniendo Jobs pendientes para usuario ${userId}`);
+    console.log(`📋 Obteniendo Jobs pendientes para usuario ${userId}`);
     
     const jobs = await getPendingSyncJobs(userId);
     
@@ -377,8 +323,9 @@ app.get('/jobs/pending', async (req, res) => {
       total: jobs.total
     });
   } catch (error) {
-    console.error('Error obteniendo Jobs pendientes:', error);
+    console.error('❌ Error obteniendo Jobs pendientes:', error);
     res.status(500).json({
+      success: false,
       error: 'Error obteniendo Jobs pendientes',
       message: error.message
     });
@@ -392,19 +339,24 @@ app.post('/sync/job', async (req, res) => {
     
     if (!jobId || !userId) {
       return res.status(400).json({
+        success: false,
         error: 'Parámetros faltantes',
         message: 'Se requiere jobId y userId'
       });
     }
 
-    console.log(`Sincronizando Job ${jobId} para usuario ${userId}`);
+    console.log(`🔄 Sincronizando Job ${jobId} para usuario ${userId}`);
     
     const result = await syncJob(userId, jobId);
     
-    res.json(result);
+    res.json({
+      success: true,
+      ...result
+    });
   } catch (error) {
-    console.error('Error sincronizando Job:', error);
+    console.error('❌ Error sincronizando Job:', error);
     res.status(500).json({
+      success: false,
       error: 'Error sincronizando Job',
       message: error.message
     });
@@ -417,12 +369,13 @@ app.post('/sync/multiple', async (req, res) => {
     
     if (!jobIds || !userId || !Array.isArray(jobIds)) {
       return res.status(400).json({
+        success: false,
         error: 'Parámetros faltantes',
         message: 'Se requiere jobIds (array) y userId'
       });
     }
 
-    console.log(`Sincronizando ${jobIds.length} Jobs para usuario ${userId}`);
+    console.log(`🔄 Sincronizando ${jobIds.length} Jobs para usuario ${userId}`);
     
     const result = await syncMultipleJobs(userId, jobIds);
     
@@ -432,8 +385,9 @@ app.post('/sync/multiple', async (req, res) => {
       result
     });
   } catch (error) {
-    console.error('Error sincronizando múltiples Jobs:', error);
+    console.error('❌ Error sincronizando múltiples Jobs:', error);
     res.status(500).json({
+      success: false,
       error: 'Error sincronizando múltiples Jobs',
       message: error.message
     });
@@ -446,19 +400,24 @@ app.post('/sync/pending', async (req, res) => {
     
     if (!userId) {
       return res.status(400).json({
+        success: false,
         error: 'Parámetros faltantes',
         message: 'Se requiere userId'
       });
     }
 
-    console.log(`Sincronizando Jobs pendientes para usuario ${userId}`);
+    console.log(`🔄 Sincronizando Jobs pendientes para usuario ${userId}`);
     
     const result = await syncPendingJobs(userId);
     
-    res.json(result);
+    res.json({
+      success: true,
+      ...result
+    });
   } catch (error) {
-    console.error('Error sincronizando Jobs pendientes:', error);
+    console.error('❌ Error sincronizando Jobs pendientes:', error);
     res.status(500).json({
+      success: false,
       error: 'Error sincronizando Jobs pendientes',
       message: error.message
     });
@@ -469,7 +428,7 @@ app.post('/sync/pending', async (req, res) => {
 app.get('/sync/stats', async (req, res) => {
   try {
     const userId = req.query.userId || 'default-user';
-    console.log(`Obteniendo estadísticas para usuario ${userId}`);
+    console.log(`📊 Obteniendo estadísticas para usuario ${userId}`);
     
     const stats = await getSyncStats(userId);
     
@@ -478,179 +437,117 @@ app.get('/sync/stats', async (req, res) => {
       stats
     });
   } catch (error) {
-    console.error('Error obteniendo estadísticas:', error);
+    console.error('❌ Error obteniendo estadísticas:', error);
     res.status(500).json({
+      success: false,
       error: 'Error obteniendo estadísticas',
       message: error.message
     });
   }
 });
 
-// Ruta de prueba
-app.get('/test', (req, res) => {
-  console.log('Accediendo a /test');
-  res.json({ 
-    message: 'Test endpoint funciona!',
-    timestamp: new Date().toISOString()
-  });
-});
-
-// Endpoint para verificar configuración
-app.get('/debug/config', (req, res) => {
-  res.json({
-    FRONTEND_URL: process.env.FRONTEND_URL,
-    JOBBER_REDIRECT_URI: process.env.JOBBER_REDIRECT_URI,
-    JOBBER_CLIENT_ID: process.env.JOBBER_CLIENT_ID ? 'CONFIGURADO' : 'NO CONFIGURADO',
-    NODE_ENV: process.env.NODE_ENV
-  });
-});
-
-// Configurar API Key de Jobber
-app.post('/auth/jobber/api-key', async (req, res) => {
-  try {
-    const { apiKey, userId = 'default-user' } = req.body;
-    
-    if (!apiKey) {
-      return res.status(400).json({
-        error: 'API Key requerida',
-        message: 'Se requiere la API Key de Jobber'
-      });
-    }
-
-    console.log(`Configurando API Key de Jobber para usuario ${userId}`);
-    
-    // Guardar API Key en Firebase (o usar variables de entorno)
-    // Por ahora, solo verificamos que esté presente
-    const jobberConfig = {
-      apiKey: apiKey,
-      connected: true,
-      connectedAt: new Date().toISOString(),
-      userId: userId
-    };
-
-    res.json({
-      success: true,
-      message: 'API Key de Jobber configurada correctamente',
-      config: {
-        connected: true,
-        connectedAt: jobberConfig.connectedAt
-      }
-    });
-  } catch (error) {
-    console.error('Error configurando API Key de Jobber:', error);
-    res.status(500).json({
-      error: 'Error configurando API Key',
-      message: error.message
-    });
-  }
-});
-
-// Verificar configuración de Jobber con API Key
+// Endpoints de verificación para debugging
 app.get('/auth/jobber/config', async (req, res) => {
   try {
     const clientId = process.env.JOBBER_CLIENT_ID;
-    const redirectUri = process.env.JOBBER_REDIRECT_URI;
+    const redirectUri = process.env.JOBBER_REDIRECT_URI || process.env.REDIRECT_URI;
     
-    // Generar state JSON válido
     const stateData = JSON.stringify({ provider: 'jobber', userId: 'test-user' });
     const encodedState = encodeURIComponent(stateData);
     
-    // Generar URL de prueba con la URL correcta
-    const testUrl = `https://api.getjobber.com/api/oauth/authorize?client_id=${clientId}&response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}&scope=jobs.read+jobs.write&state=${encodedState}`;
+    const testUrl = `https://secure.getjobber.com/oauth/authorize?client_id=${clientId}&response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}&scope=read%20write&state=${encodedState}`;
     
     res.json({
       success: true,
       config: {
-        clientId: clientId,
+        clientId: clientId ? clientId.substring(0, 10) + '...' : 'NO CONFIGURADO',
         redirectUri: redirectUri,
-        testUrl: testUrl,
-        authUrl: 'https://api.getjobber.com/api/oauth/authorize',
-        tokenUrl: 'https://api.getjobber.com/api/oauth/token',
-        stateData: stateData,
-        encodedState: encodedState
+        authUrl: 'https://secure.getjobber.com/oauth/authorize',
+        tokenUrl: 'https://secure.getjobber.com/oauth/token',
+        testUrl: testUrl
       },
-      instructions: [
-        '1. Verifica que el Client ID sea correcto en Jobber Developer Portal',
-        '2. Asegúrate de que la URL de redirección esté configurada en Jobber',
-        '3. La URL debe ser exactamente: https://work-sync-delta.vercel.app/auth/callback',
-        '4. Prueba la URL de test generada arriba',
-        '5. Jobber usa OAuth2 con URLs específicas de la API'
-      ],
       message: 'Configuración de Jobber verificada'
     });
   } catch (error) {
-    console.error('Error verificando configuración:', error);
+    console.error('❌ Error verificando configuración de Jobber:', error);
     res.status(500).json({
+      success: false,
       error: 'Error verificando configuración',
       message: error.message
     });
   }
 });
 
-// Verificar configuración de QuickBooks
 app.get('/auth/quickbooks/config', async (req, res) => {
   try {
     const clientId = process.env.QUICKBOOKS_CLIENT_ID;
-    const redirectUri = process.env.QUICKBOOKS_REDIRECT_URI;
+    const redirectUri = process.env.QUICKBOOKS_REDIRECT_URI || process.env.REDIRECT_URI;
     
-    // Generar state JSON válido
     const stateData = JSON.stringify({ provider: 'quickbooks', userId: 'test-user' });
     const encodedState = encodeURIComponent(stateData);
     
-    // Generar URL de prueba
     const testUrl = `https://appcenter.intuit.com/connect/oauth2?client_id=${clientId}&response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}&scope=com.intuit.quickbooks.accounting&state=${encodedState}`;
     
     res.json({
       success: true,
       config: {
-        clientId: clientId,
+        clientId: clientId ? clientId.substring(0, 10) + '...' : 'NO CONFIGURADO',
         redirectUri: redirectUri,
-        testUrl: testUrl,
         authUrl: 'https://appcenter.intuit.com/connect/oauth2',
         tokenUrl: 'https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer',
-        stateData: stateData,
-        encodedState: encodedState
+        testUrl: testUrl
       },
-      instructions: [
-        '1. Verifica que el Client ID sea correcto en QuickBooks Developer Portal',
-        '2. Asegúrate de que la URL de redirección esté configurada en QuickBooks',
-        '3. La URL debe ser exactamente: https://work-sync-delta.vercel.app/auth/callback',
-        '4. Prueba la URL de test generada arriba',
-        '5. QuickBooks usa OAuth2 estándar'
-      ],
       message: 'Configuración de QuickBooks verificada'
     });
   } catch (error) {
-    console.error('Error verificando configuración de QuickBooks:', error);
+    console.error('❌ Error verificando configuración de QuickBooks:', error);
     res.status(500).json({
+      success: false,
       error: 'Error verificando configuración',
       message: error.message
     });
   }
 });
 
-// Manejo de rutas no encontradas
-app.use('*', (req, res) => {
-  console.log(`Ruta no encontrada: ${req.originalUrl}`);
-  res.status(404).json({
-    error: 'Ruta no encontrada',
-    path: req.originalUrl,
-    timestamp: new Date().toISOString()
+// Endpoint de debug para verificar variables de entorno
+app.get('/debug/config', (req, res) => {
+  res.json({
+    NODE_ENV: process.env.NODE_ENV,
+    FRONTEND_URL: process.env.FRONTEND_URL,
+    REDIRECT_URI: process.env.REDIRECT_URI,
+    JOBBER_CLIENT_ID: process.env.JOBBER_CLIENT_ID ? 'CONFIGURADO' : 'NO CONFIGURADO',
+    JOBBER_REDIRECT_URI: process.env.JOBBER_REDIRECT_URI,
+    QUICKBOOKS_CLIENT_ID: process.env.QUICKBOOKS_CLIENT_ID ? 'CONFIGURADO' : 'NO CONFIGURADO',
+    QUICKBOOKS_REDIRECT_URI: process.env.QUICKBOOKS_REDIRECT_URI,
+    FIREBASE_PROJECT_ID: process.env.FIREBASE_PROJECT_ID ? 'CONFIGURADO' : 'NO CONFIGURADO'
   });
 });
 
-// Error handler
-app.use((err, req, res, next) => {
-  console.error('Error:', err);
-  res.status(500).json({
-    error: 'Error interno del servidor',
-    message: err.message,
-    timestamp: new Date().toISOString()
+// Manejo de rutas no encontradas
+app.use('*', (req, res) => {
+  console.log(`🔍 Ruta no encontrada: ${req.method} ${req.originalUrl}`);
+  res.status(404).json({
+    error: 'Ruta no encontrada',
+    path: req.originalUrl,
+    method: req.method,
+    timestamp: new Date().toISOString(),
+    availableRoutes: [
+      'GET /',
+      'GET /health',
+      'GET /auth/status',
+      'GET /auth/jobber',
+      'GET /auth/quickbooks',
+      'GET /auth/callback',
+      'GET /jobs',
+      'GET /jobs/recent',
+      'POST /sync/job',
+      'POST /sync/multiple'
+    ]
   });
 });
 
 // Función específica para Vercel
 module.exports = (req, res) => {
-  console.log('Función Vercel llamada:', req.url);
+  console.log(`🚀 Vercel function called: ${req.method} ${req.url}`);
   return app(req, res);
-}; 
+};
