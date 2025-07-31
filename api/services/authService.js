@@ -9,11 +9,11 @@ const OAUTH_CONFIG = {
     clientId: process.env.JOBBER_CLIENT_ID,
     clientSecret: process.env.JOBBER_CLIENT_SECRET,
     apiKey: process.env.JOBBER_API_KEY,
-    authUrl: 'https://secure.getjobber.com/oauth/authorize',
-    tokenUrl: 'https://secure.getjobber.com/oauth/token',
+    authUrl: 'https://api.getjobber.com/api/oauth/authorize',
+    tokenUrl: 'https://api.getjobber.com/api/oauth/token',
     redirectUri: process.env.JOBBER_REDIRECT_URI,
     scope: 'jobs.read jobs.write',
-    // Jobber usa OAuth2 con URLs en secure.getjobber.com
+    // Jobber usa OAuth2 con URLs oficiales de la API
     useApiKey: false
   },
   quickbooks: {
