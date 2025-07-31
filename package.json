@@ -6,10 +6,7 @@
   "scripts": {
     "start": "node api/index.js",
     "dev": "nodemon api/index.js",
-    "dev:basic": "node api/index.js",
     "verify": "node verify-setup.js",
-    "install:all": "npm install && cd frontend && npm install",
-    "build": "echo 'API only - no build needed'",
     "test": "echo \"Tests will be added later\" && exit 0"
   },
   "keywords": ["jobber", "quickbooks", "sync", "api", "oauth2", "automation"],
