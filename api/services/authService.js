@@ -1,4 +1,5 @@
 // Servicio de autenticación OAuth2 para Jobber y QuickBooks
+require('dotenv').config();
 const axios = require('axios');
 const { saveToken, getToken, saveErrorLog } = require('../config/firebase');
 
@@ -45,44 +46,63 @@ const generateAuthUrl = (provider, userId) => {
 };
 
 // Intercambiar código por token
-const exchangeCodeForToken = async (provider, code, userId) => {
+const exchangeCodeForToken = async (provider, code, userId, additionalParams = {}) => {
   const config = OAUTH_CONFIG[provider];
   if (!config) {
     throw new Error(`Proveedor no soportado: ${provider}`);
   }
 
   try {
-    const tokenResponse = await axios.post(config.tokenUrl, {
+    console.log(`Intercambiando código por token para ${provider}`);
+    
+    // Preparar datos para el POST
+    const tokenData = new URLSearchParams({
       grant_type: 'authorization_code',
       code,
       redirect_uri: config.redirectUri,
       client_id: config.clientId,
       client_secret: config.clientSecret
-    }, {
+    });
+
+    const tokenResponse = await axios.post(config.tokenUrl, tokenData, {
       headers: {
-        'Content-Type': 'application/x-www-form-urlencoded'
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Accept': 'application/json'
       }
     });
 
-    const tokenData = {
+    console.log(`Token obtenido exitosamente para ${provider}`);
+
+    const tokenInfo = {
       access_token: tokenResponse.data.access_token,
       refresh_token: tokenResponse.data.refresh_token,
-      expires_in: tokenResponse.data.expires_in,
-      token_type: tokenResponse.data.token_type,
-      expires_at: Date.now() + (tokenResponse.data.expires_in * 1000)
+      expires_in: tokenResponse.data.expires_in || 3600,
+      token_type: tokenResponse.data.token_type || 'Bearer',
+      expires_at: Date.now() + ((tokenResponse.data.expires_in || 3600) * 1000),
+      // Para QuickBooks, también guardamos realmId (company ID)
+      ...(provider === 'quickbooks' && (tokenResponse.data.realmId || additionalParams.realmId) && {
+        realmId: tokenResponse.data.realmId || additionalParams.realmId,
+        company_id: tokenResponse.data.realmId || additionalParams.realmId
+      }),
+      // Incluir cualquier parámetro adicional
+      ...additionalParams
     };
 
     // Guardar token en Firebase
-    await saveToken(userId, provider, tokenData);
+    await saveToken(userId, provider, tokenInfo);
+    console.log(`Token guardado para ${provider}`);
 
-    return tokenData;
+    return tokenInfo;
   } catch (error) {
     console.error(`Error intercambiando código por token (${provider}):`, error.response?.data || error.message);
-    await saveErrorLog(userId, {
-      provider,
-      error: 'exchange_code_for_token',
-      message: error.response?.data || error.message
-    });
+    if (saveErrorLog) {
+      await saveErrorLog(userId, {
+        provider,
+        error: 'exchange_code_for_token',
+        message: error.response?.data || error.message,
+        statusCode: error.response?.status
+      });
+    }
     throw error;
   }
 };
@@ -97,23 +117,33 @@ const refreshToken = async (provider, userId) => {
   }
 
   try {
-    const refreshResponse = await axios.post(config.tokenUrl, {
+    console.log(`Refrescando token para ${provider}`);
+    
+    const refreshData = new URLSearchParams({
       grant_type: 'refresh_token',
       refresh_token: currentToken.refresh_token,
       client_id: config.clientId,
       client_secret: config.clientSecret
-    }, {
+    });
+
+    const refreshResponse = await axios.post(config.tokenUrl, refreshData, {
       headers: {
-        'Content-Type': 'application/x-www-form-urlencoded'
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Accept': 'application/json'
       }
     });
+
+    console.log(`Token refrescado exitosamente para ${provider}`);
 
     const newTokenData = {
       access_token: refreshResponse.data.access_token,
       refresh_token: refreshResponse.data.refresh_token || currentToken.refresh_token,
-      expires_in: refreshResponse.data.expires_in,
-      token_type: refreshResponse.data.token_type,
-      expires_at: Date.now() + (refreshResponse.data.expires_in * 1000)
+      expires_in: refreshResponse.data.expires_in || 3600,
+      token_type: refreshResponse.data.token_type || currentToken.token_type,
+      expires_at: Date.now() + ((refreshResponse.data.expires_in || 3600) * 1000),
+      // Preservar datos adicionales del token original
+      ...(currentToken.realmId && { realmId: currentToken.realmId }),
+      ...(currentToken.company_id && { company_id: currentToken.company_id })
     };
 
     // Actualizar token en Firebase
@@ -122,11 +152,14 @@ const refreshToken = async (provider, userId) => {
     return newTokenData;
   } catch (error) {
     console.error(`Error refrescando token (${provider}):`, error.response?.data || error.message);
-    await saveErrorLog(userId, {
-      provider,
-      error: 'refresh_token',
-      message: error.response?.data || error.message
-    });
+    if (saveErrorLog) {
+      await saveErrorLog(userId, {
+        provider,
+        error: 'refresh_token',
+        message: error.response?.data || error.message,
+        statusCode: error.response?.status
+      });
+    }
     throw error;
   }
 };
@@ -160,16 +193,22 @@ const getValidToken = async (provider, userId) => {
 // Verificar estado de conexión
 const checkConnectionStatus = async (userId) => {
   const status = {
-    jobber: { connected: false, lastSync: null },
-    quickbooks: { connected: false, lastSync: null }
+    jobber: { connected: false, authenticated: false, lastSync: null },
+    quickbooks: { connected: false, authenticated: false, lastSync: null }
   };
 
   try {
     // Verificar Jobber (OAuth2)
     const jobberToken = await getToken(userId, 'jobber');
     if (jobberToken && jobberToken.access_token) {
+      const now = Date.now();
+      const isExpired = jobberToken.expires_at && now >= jobberToken.expires_at;
+      
       status.jobber.connected = true;
+      status.jobber.authenticated = !isExpired;
       status.jobber.lastSync = jobberToken.updatedAt;
+      status.jobber.expiresAt = jobberToken.expires_at;
+      status.jobber.isExpired = isExpired;
     }
   } catch (error) {
     console.error('Error verificando conexión de Jobber:', error);
@@ -179,8 +218,15 @@ const checkConnectionStatus = async (userId) => {
     // Verificar QuickBooks (OAuth2)
     const quickbooksToken = await getToken(userId, 'quickbooks');
     if (quickbooksToken && quickbooksToken.access_token) {
+      const now = Date.now();
+      const isExpired = quickbooksToken.expires_at && now >= quickbooksToken.expires_at;
+      
       status.quickbooks.connected = true;
+      status.quickbooks.authenticated = !isExpired;
       status.quickbooks.lastSync = quickbooksToken.updatedAt;
+      status.quickbooks.expiresAt = quickbooksToken.expires_at;
+      status.quickbooks.isExpired = isExpired;
+      status.quickbooks.companyId = quickbooksToken.realmId || quickbooksToken.company_id;
     }
   } catch (error) {
     console.error('Error verificando conexión de QuickBooks:', error);

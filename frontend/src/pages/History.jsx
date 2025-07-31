@@ -12,37 +12,68 @@ const History = () => {
 
   const loadHistory = async () => {
     try {
-      // Esta funcionalidad se implementará después
-      // const response = await syncService.getSyncHistory();
-      // if (response.success) {
-      //   setHistory(response.data);
-      // }
+      setLoading(true);
+      const response = await syncService.getSyncStats();
       
-      // Datos de ejemplo por ahora
+      if (response.success && response.stats.recentActivity) {
+        // Transformar los datos de la API al formato esperado por el componente
+        const transformedHistory = response.stats.recentActivity.map(item => ({
+          id: item.id || Date.now().toString() + Math.random().toString(36).substr(2, 9),
+          type: item.status === 'success' ? 'sync_success' : 'sync_error',
+          message: item.status === 'success' ? 
+            `Sincronización exitosa: Job ${item.jobId || 'desconocido'} exportado a QuickBooks` :
+            `Error sincronizando Job ${item.jobId || 'desconocido'}: ${item.message || 'Error desconocido'}`,
+          createdAt: item.createdAt?.toDate ? item.createdAt.toDate() : new Date(item.createdAt || Date.now()),
+          details: {
+            jobId: item.jobId,
+            jobsCount: item.syncType === 'batch' ? item.summary?.successful : 1,
+            platform: 'quickbooks',
+            amount: item.amount,
+            error: item.status !== 'success' ? item.message : null
+          }
+        }));
+        
+        setHistory(transformedHistory);
+      } else {
+        // Si no hay datos de la API, mostrar datos de ejemplo
+        setHistory([
+          {
+            id: '1',
+            type: 'sync_success',
+            message: 'Sincronización exitosa: 3 Jobs exportados a QuickBooks',
+            createdAt: new Date('2024-01-15T10:30:00'),
+            details: {
+              jobsCount: 3,
+              platform: 'quickbooks'
+            }
+          },
+          {
+            id: '2',
+            type: 'sync_error',
+            message: 'Error sincronizando Job #123: Cliente no encontrado en QuickBooks',
+            createdAt: new Date('2024-01-14T15:45:00'),
+            details: {
+              jobId: '123',
+              error: 'Cliente no encontrado'
+            }
+          }
+        ]);
+      }
+    } catch (error) {
+      console.error('Error cargando historial:', error);
+      // En caso de error, mostrar datos de ejemplo
       setHistory([
         {
-          id: '1',
+          id: 'example-1',
           type: 'sync_success',
-          message: 'Sincronización exitosa: 3 Jobs exportados a QuickBooks',
-          createdAt: new Date('2024-01-15T10:30:00'),
+          message: 'Ejemplo: Sincronización exitosa de Job completado',
+          createdAt: new Date(),
           details: {
-            jobsCount: 3,
+            jobsCount: 1,
             platform: 'quickbooks'
-          }
-        },
-        {
-          id: '2',
-          type: 'sync_error',
-          message: 'Error sincronizando Job #123: Cliente no encontrado en QuickBooks',
-          createdAt: new Date('2024-01-14T15:45:00'),
-          details: {
-            jobId: '123',
-            error: 'Cliente no encontrado'
           }
         }
       ]);
-    } catch (error) {
-      console.error('Error cargando historial:', error);
     } finally {
       setLoading(false);
     }

@@ -1,4 +1,5 @@
 // API principal de WorkSync
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const { generateAuthUrl, exchangeCodeForToken, checkConnectionStatus, disconnectProvider } = require('./services/authService');
@@ -177,45 +178,77 @@ app.get('/auth/quickbooks', async (req, res) => {
 
 // Callbacks de OAuth2
 app.get('/auth/callback', async (req, res) => {
+  console.log('🔄 CALLBACK INICIADO');
+  console.log('Headers:', req.headers);
+  console.log('URL completa:', req.url);
+  
   try {
-    const { code, state } = req.query;
+    const { code, state, realmId, error: oauthError, error_description } = req.query;
     
     console.log('=== CALLBACK OAUTH DEBUG ===');
-    console.log('Query parameters:', req.query);
+    console.log('Query parameters:', JSON.stringify(req.query, null, 2));
     console.log('Code:', code ? 'PRESENTE' : 'AUSENTE');
     console.log('State:', state ? 'PRESENTE' : 'AUSENTE');
+    console.log('RealmId (QB):', realmId ? 'PRESENTE' : 'AUSENTE');
+    console.log('OAuth Error:', oauthError || 'NINGUNO');
+    console.log('Variables de entorno:');
+    console.log('- FRONTEND_URL:', process.env.FRONTEND_URL);
+    console.log('- NODE_ENV:', process.env.NODE_ENV);
     console.log('============================');
     
+    // Manejar errores OAuth
+    if (oauthError) {
+      console.error('Error OAuth recibido:', oauthError, error_description);
+      return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:5173'}/?error=${encodeURIComponent(oauthError + ': ' + (error_description || 'Error de autorización'))}`);
+    }
+    
     if (!code || !state) {
-      return res.status(400).json({
-        error: 'Parámetros faltantes',
-        message: 'Se requiere code y state',
-        received: { code: !!code, state: !!state }
-      });
+      const errorMsg = 'Parámetros OAuth faltantes';
+      console.error(errorMsg, { code: !!code, state: !!state });
+      return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:5173'}/?error=${encodeURIComponent(errorMsg)}`);
     }
 
-    const stateData = JSON.parse(state);
+    let stateData;
+    try {
+      stateData = JSON.parse(decodeURIComponent(state));
+    } catch (parseError) {
+      console.error('Error parseando state:', parseError);
+      return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:5173'}/?error=${encodeURIComponent('State parameter inválido')}`);
+    }
+    
     const { provider, userId } = stateData;
 
     console.log(`Procesando callback de ${provider} para usuario ${userId}`);
 
-    const tokenData = await exchangeCodeForToken(provider, code, userId);
+    // Para QuickBooks, incluir el realmId en los parámetros del token
+    const additionalParams = {};
+    if (provider === 'quickbooks' && realmId) {
+      additionalParams.realmId = realmId;
+    }
 
-    res.json({
-      success: true,
-      provider,
-      message: `${provider} conectado correctamente`,
-      tokenData: {
-        expires_in: tokenData.expires_in,
-        token_type: tokenData.token_type
-      }
-    });
+    console.log('🔄 Intentando intercambiar código por token...');
+    const tokenData = await exchangeCodeForToken(provider, code, userId, additionalParams);
+    console.log('✅ Token obtenido exitosamente');
+
+    console.log(`✅ ${provider} conectado exitosamente para usuario ${userId}`);
+    
+    // Redirigir al frontend con mensaje de éxito
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    const redirectUrl = `${frontendUrl}/?success=${encodeURIComponent(provider)}`;
+    
+    console.log(`🔄 Preparando redirección...`);
+    console.log(`🌐 FRONTEND_URL: ${process.env.FRONTEND_URL}`);
+    console.log(`🎯 URL de redirección: ${redirectUrl}`);
+    console.log('🚀 Ejecutando res.redirect()...');
+    
+    res.redirect(redirectUrl);
+    console.log('✅ Redirección enviada');
+    return;
+    
   } catch (error) {
-    console.error('Error en callback OAuth:', error);
-    res.status(500).json({
-      error: 'Error procesando autorización',
-      message: error.message
-    });
+    console.error('❌ Error en callback OAuth:', error);
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    return res.redirect(`${frontendUrl}/?error=${encodeURIComponent('Error procesando autorización: ' + error.message)}`);
   }
 });
 
@@ -447,6 +480,16 @@ app.get('/test', (req, res) => {
   res.json({ 
     message: 'Test endpoint funciona!',
     timestamp: new Date().toISOString()
+  });
+});
+
+// Endpoint para verificar configuración
+app.get('/debug/config', (req, res) => {
+  res.json({
+    FRONTEND_URL: process.env.FRONTEND_URL,
+    JOBBER_REDIRECT_URI: process.env.JOBBER_REDIRECT_URI,
+    JOBBER_CLIENT_ID: process.env.JOBBER_CLIENT_ID ? 'CONFIGURADO' : 'NO CONFIGURADO',
+    NODE_ENV: process.env.NODE_ENV
   });
 });
 

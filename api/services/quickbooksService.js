@@ -4,21 +4,32 @@ const { getValidToken } = require('./authService');
 const { saveErrorLog } = require('../config/firebase');
 
 // Configuración de la API de QuickBooks
-const QUICKBOOKS_API_BASE = 'https://sandbox-accounts.platform.intuit.com/v1';
+const QUICKBOOKS_API_BASE = process.env.QUICKBOOKS_API_BASE || 'https://sandbox-quickbooks.api.intuit.com';
+const QB_API_VERSION = 'v3';
 
 // Obtener información de la empresa
 const getCompanyInfo = async (userId) => {
   try {
     const token = await getValidToken('quickbooks', userId);
     
-    const response = await axios.get(`${QUICKBOOKS_API_BASE}/companies`, {
+    // QuickBooks requiere el company ID que viene en el token
+    const companyId = token.realmId || token.company_id;
+    if (!companyId) {
+      throw new Error('No se encontró Company ID en el token');
+    }
+
+    const response = await axios.get(`${QUICKBOOKS_API_BASE}/${QB_API_VERSION}/company/${companyId}/companyinfo/${companyId}`, {
       headers: {
         'Authorization': `Bearer ${token.access_token}`,
         'Accept': 'application/json'
       }
     });
 
-    return response.data.companies?.[0] || null;
+    return {
+      Id: companyId,
+      Name: response.data.QueryResponse?.CompanyInfo?.[0]?.CompanyName || 'Mi Empresa',
+      ...response.data.QueryResponse?.CompanyInfo?.[0]
+    };
   } catch (error) {
     console.error('Error obteniendo información de empresa de QuickBooks:', error.response?.data || error.message);
     if (saveErrorLog) {
@@ -64,7 +75,7 @@ const createInvoice = async (userId, invoiceData) => {
       TxnDate: invoiceData.date
     };
 
-    const response = await axios.post(`${QUICKBOOKS_API_BASE}/companies/${companyInfo.Id}/invoices`, quickbooksInvoice, {
+    const response = await axios.post(`${QUICKBOOKS_API_BASE}/${QB_API_VERSION}/company/${companyInfo.Id}/invoice`, quickbooksInvoice, {
       headers: {
         'Authorization': `Bearer ${token.access_token}`,
         'Content-Type': 'application/json',
@@ -103,10 +114,8 @@ const checkInvoiceExists = async (userId, jobId) => {
       return false;
     }
 
-    const response = await axios.get(`${QUICKBOOKS_API_BASE}/companies/${companyInfo.Id}/invoices`, {
-      params: {
-        query: `SELECT * FROM Invoice WHERE DocNumber = 'Job-${jobId}'`
-      },
+    const query = encodeURIComponent(`SELECT * FROM Invoice WHERE DocNumber = 'Job-${jobId}'`);
+    const response = await axios.get(`${QUICKBOOKS_API_BASE}/${QB_API_VERSION}/company/${companyInfo.Id}/query?query=${query}`, {
       headers: {
         'Authorization': `Bearer ${token.access_token}`,
         'Accept': 'application/json'
@@ -130,10 +139,8 @@ const getRecentInvoices = async (userId, limit = 50) => {
       return { invoices: [], total: 0 };
     }
 
-    const response = await axios.get(`${QUICKBOOKS_API_BASE}/companies/${companyInfo.Id}/invoices`, {
-      params: {
-        query: `SELECT * FROM Invoice ORDER BY TxnDate DESC MAXRESULTS ${limit}`
-      },
+    const query = encodeURIComponent(`SELECT * FROM Invoice ORDER BY TxnDate DESC MAXRESULTS ${limit}`);
+    const response = await axios.get(`${QUICKBOOKS_API_BASE}/${QB_API_VERSION}/company/${companyInfo.Id}/query?query=${query}`, {
       headers: {
         'Authorization': `Bearer ${token.access_token}`,
         'Accept': 'application/json'
@@ -177,7 +184,7 @@ const createCustomer = async (userId, customerData) => {
       } : undefined
     };
 
-    const response = await axios.post(`${QUICKBOOKS_API_BASE}/companies/${companyInfo.Id}/customers`, customer, {
+    const response = await axios.post(`${QUICKBOOKS_API_BASE}/${QB_API_VERSION}/company/${companyInfo.Id}/customer`, customer, {
       headers: {
         'Authorization': `Bearer ${token.access_token}`,
         'Content-Type': 'application/json',
