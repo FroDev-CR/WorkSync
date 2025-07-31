@@ -4,7 +4,7 @@ const { getValidToken } = require('./authService');
 const { saveErrorLog } = require('../config/firebase');
 
 // Configuración de la API de Jobber
-const JOBBER_API_BASE = process.env.JOBBER_API_URL || 'https://api.getjobber.com/api';
+const JOBBER_API_BASE = process.env.JOBBER_API_URL || 'https://api.getjobber.com/api/graphql';
 
 // Obtener Jobs de Jobber
 const getJobs = async (userId, options = {}) => {

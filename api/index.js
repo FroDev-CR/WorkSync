@@ -9,9 +9,23 @@ const { syncJob, syncMultipleJobs, syncPendingJobs, getSyncStats } = require('./
 
 const app = express();
 
+// Configuración CORS para frontend separado
+const corsOptions = {
+  origin: [
+    'http://localhost:5173', // Desarrollo local
+    'http://localhost:3000', // Desarrollo alternativo
+    process.env.FRONTEND_URL, // URL del frontend en producción
+    'https://tu-frontend-aqui.netlify.app', // URL específica de Netlify
+    // Agregar más orígenes según necesites
+  ].filter(Boolean), // Eliminar valores undefined
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+};
+
 // Middleware básico
 app.use(express.json());
-app.use(cors());
+app.use(cors(corsOptions));
 
 // Logging middleware
 app.use((req, res, next) => {
@@ -199,13 +213,15 @@ app.get('/auth/callback', async (req, res) => {
     // Manejar errores OAuth
     if (oauthError) {
       console.error('Error OAuth recibido:', oauthError, error_description);
-      return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:5173'}/?error=${encodeURIComponent(oauthError + ': ' + (error_description || 'Error de autorización'))}`);
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+      return res.redirect(`${frontendUrl}/settings?error=${encodeURIComponent(oauthError)}&description=${encodeURIComponent(error_description || 'Error de autorización')}`);
     }
     
     if (!code || !state) {
       const errorMsg = 'Parámetros OAuth faltantes';
       console.error(errorMsg, { code: !!code, state: !!state });
-      return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:5173'}/?error=${encodeURIComponent(errorMsg)}`);
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+      return res.redirect(`${frontendUrl}/settings?error=${encodeURIComponent('missing_parameters')}&description=${encodeURIComponent(errorMsg)}`);
     }
 
     let stateData;
@@ -213,7 +229,8 @@ app.get('/auth/callback', async (req, res) => {
       stateData = JSON.parse(decodeURIComponent(state));
     } catch (parseError) {
       console.error('Error parseando state:', parseError);
-      return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:5173'}/?error=${encodeURIComponent('State parameter inválido')}`);
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+      return res.redirect(`${frontendUrl}/settings?error=${encodeURIComponent('invalid_state')}&description=${encodeURIComponent('State parameter inválido')}`);
     }
     
     const { provider, userId } = stateData;
@@ -234,21 +251,16 @@ app.get('/auth/callback', async (req, res) => {
     
     // Redirigir al frontend con mensaje de éxito
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-    const redirectUrl = `${frontendUrl}/?success=${encodeURIComponent(provider)}`;
+    const redirectUrl = `${frontendUrl}/settings?connected=${provider}&success=true`;
     
-    console.log(`🔄 Preparando redirección...`);
-    console.log(`🌐 FRONTEND_URL: ${process.env.FRONTEND_URL}`);
-    console.log(`🎯 URL de redirección: ${redirectUrl}`);
-    console.log('🚀 Ejecutando res.redirect()...');
-    
+    console.log(`🔄 Redirigiendo a frontend: ${redirectUrl}`);
     res.redirect(redirectUrl);
-    console.log('✅ Redirección enviada');
     return;
     
   } catch (error) {
     console.error('❌ Error en callback OAuth:', error);
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-    return res.redirect(`${frontendUrl}/?error=${encodeURIComponent('Error procesando autorización: ' + error.message)}`);
+    return res.redirect(`${frontendUrl}/settings?error=${encodeURIComponent('internal_error')}&description=${encodeURIComponent('Error procesando autorización: ' + error.message)}`);
   }
 });
 

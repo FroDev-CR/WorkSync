@@ -1,18 +1,43 @@
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { authService } from '../services/api';
 import './Settings.css';
 
-const Settings = () => {
+const Settings = ({ onAuthStatusChange }) => {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [authStatus, setAuthStatus] = useState({
     jobber: { connected: false },
     quickbooks: { connected: false }
   });
+  const [searchParams, setSearchParams] = useSearchParams();
 
   useEffect(() => {
     loadAuthStatus();
   }, []);
+
+  // Manejar parámetros de callback OAuth
+  useEffect(() => {
+    const connected = searchParams.get('connected');
+    const success = searchParams.get('success');
+    const error = searchParams.get('error');
+    const description = searchParams.get('description');
+
+    if (connected && success) {
+      setMessage(`✅ ¡${connected.charAt(0).toUpperCase() + connected.slice(1)} conectado exitosamente!`);
+      // Recargar estado de autenticación
+      setTimeout(() => {
+        loadAuthStatus();
+        if (onAuthStatusChange) onAuthStatusChange();
+      }, 1000);
+      
+      // Limpiar parámetros de URL
+      setSearchParams({});
+    } else if (error) {
+      setMessage(`❌ Error de conexión: ${description || error}`);
+      setSearchParams({});
+    }
+  }, [searchParams, setSearchParams, onAuthStatusChange]);
 
   const loadAuthStatus = async () => {
     try {
