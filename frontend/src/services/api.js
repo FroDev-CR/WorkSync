@@ -1,21 +1,44 @@
 import axios from 'axios';
 
-// Configuración base de axios
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://work-sync-delta.vercel.app';
+// Configuración base de axios - CORREGIDA PARA VERCEL
+const API_BASE_URL = process.env.NODE_ENV === 'development' 
+  ? 'http://localhost:3001' 
+  : 'https://work-sync-delta.vercel.app/api';
+
+console.log('🔧 API Base URL:', API_BASE_URL);
 
 const api = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 10000,
+  timeout: 15000,
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
+// Interceptor para logging
+api.interceptors.request.use(
+  (config) => {
+    console.log(`📤 API Request: ${config.method?.toUpperCase()} ${config.url}`);
+    return config;
+  },
+  (error) => {
+    console.error('📤 Request Error:', error);
+    return Promise.reject(error);
+  }
+);
+
 // Interceptor para manejar errores
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    console.log(`📥 API Response: ${response.status} ${response.config.url}`);
+    return response;
+  },
   (error) => {
-    console.error('API Error:', error.response?.data || error.message);
+    console.error('📥 API Error:', {
+      status: error.response?.status,
+      data: error.response?.data,
+      url: error.config?.url
+    });
     return Promise.reject(error);
   }
 );
@@ -106,4 +129,4 @@ export const healthService = {
   },
 };
 
-export default api; 
+export default api;
