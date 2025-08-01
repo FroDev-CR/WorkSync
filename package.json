@@ -1,7 +1,7 @@
 {
-  "name": "worksync",
+  "name": "worksync-backend",
   "version": "1.0.0",
-  "description": "Herramienta para sincronizar Jobs de Jobber a QuickBooks",
+  "description": "WorkSync Backend API",
   "main": "api/index.js",
   "scripts": {
     "start": "node api/index.js",
@@ -23,6 +23,6 @@
     "nodemon": "^3.0.0"
   },
   "engines": {
-    "node": ">=16.0.0"
+    "node": "22.x"
   }
-} 
+}
