@@ -1,53 +1,23 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { authService, syncService } from '../services/api';
+import { useAuthStatus, useSyncStats } from '../hooks/useWorkSyncAPI';
 import './Dashboard.css';
 
 const Dashboard = () => {
-  const [authStatus, setAuthStatus] = useState({
-    jobber: { connected: false, lastSync: null },
-    quickbooks: { connected: false, lastSync: null }
-  });
-  const [syncStats, setSyncStats] = useState({
-    totalSyncs: 0,
-    successfulSyncs: 0,
-    failedSyncs: 0,
-    totalAmount: 0,
-    lastSync: null,
-    recentActivity: []
-  });
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const { authStatus, loading: authLoading, error: authError, refetch: refetchAuth } = useAuthStatus('default-user');
+  const { syncStats, loading: statsLoading, error: statsError, refetch: refetchStats } = useSyncStats('default-user');
+  
+  const loading = authLoading || statsLoading;
+  const error = authError || statsError;
 
-  useEffect(() => {
-    loadDashboardData();
-  }, []);
-
-  const loadDashboardData = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      // Cargar estado de autenticación
-      const authResponse = await authService.getAuthStatus();
-      setAuthStatus(authResponse.status);
-
-      // Cargar estadísticas de sincronización
-      const statsResponse = await syncService.getSyncStats();
-      if (statsResponse.success) {
-        setSyncStats(statsResponse.stats);
-      }
-    } catch (error) {
-      console.error('Error cargando datos del dashboard:', error);
-      setError('Error cargando datos del dashboard');
-    } finally {
-      setLoading(false);
-    }
+  const handleRetry = () => {
+    refetchAuth();
+    refetchStats();
   };
 
   const getConnectionStatus = () => {
-    const jobberConnected = authStatus.jobber.connected;
-    const quickbooksConnected = authStatus.quickbooks.connected;
+    const jobberConnected = authStatus?.jobber?.connected || false;
+    const quickbooksConnected = authStatus?.quickbooks?.connected || false;
     
     if (jobberConnected && quickbooksConnected) {
       return {
@@ -93,7 +63,7 @@ const Dashboard = () => {
       <div className="dashboard-error">
         <h3>Error</h3>
         <p>{error}</p>
-        <button onClick={loadDashboardData} className="retry-button">
+        <button onClick={handleRetry} className="retry-button">
           Reintentar
         </button>
       </div>
@@ -118,18 +88,18 @@ const Dashboard = () => {
             
             <div className="platform-status">
               <div className="platform-item">
-                <span className={`platform-dot ${authStatus.jobber.connected ? 'connected' : 'disconnected'}`}></span>
+                <span className={`platform-dot ${authStatus?.jobber?.connected ? 'connected' : 'disconnected'}`}></span>
                 <span className="platform-name">Jobber</span>
                 <span className="platform-status-text">
-                  {authStatus.jobber.connected ? 'Conectado' : 'Desconectado'}
+                  {authStatus?.jobber?.connected ? 'Conectado' : 'Desconectado'}
                 </span>
               </div>
               
               <div className="platform-item">
-                <span className={`platform-dot ${authStatus.quickbooks.connected ? 'connected' : 'disconnected'}`}></span>
+                <span className={`platform-dot ${authStatus?.quickbooks?.connected ? 'connected' : 'disconnected'}`}></span>
                 <span className="platform-name">QuickBooks</span>
                 <span className="platform-status-text">
-                  {authStatus.quickbooks.connected ? 'Conectado' : 'Desconectado'}
+                  {authStatus?.quickbooks?.connected ? 'Conectado' : 'Desconectado'}
                 </span>
               </div>
             </div>
@@ -141,22 +111,22 @@ const Dashboard = () => {
           <h3>Estadísticas de Sincronización</h3>
           <div className="stats-grid">
             <div className="stat-item">
-              <div className="stat-number">{syncStats.totalSyncs}</div>
+              <div className="stat-number">{syncStats?.totalSyncs || 0}</div>
               <div className="stat-label">Total Sincronizaciones</div>
             </div>
             
             <div className="stat-item">
-              <div className="stat-number success">{syncStats.successfulSyncs}</div>
+              <div className="stat-number success">{syncStats?.successfulSyncs || 0}</div>
               <div className="stat-label">Exitosas</div>
             </div>
             
             <div className="stat-item">
-              <div className="stat-number error">{syncStats.failedSyncs}</div>
+              <div className="stat-number error">{syncStats?.failedSyncs || 0}</div>
               <div className="stat-label">Fallidas</div>
             </div>
             
             <div className="stat-item">
-              <div className="stat-number amount">{formatCurrency(syncStats.totalAmount)}</div>
+              <div className="stat-number amount">{formatCurrency(syncStats?.totalAmount || 0)}</div>
               <div className="stat-label">Monto Total</div>
             </div>
           </div>
@@ -190,9 +160,9 @@ const Dashboard = () => {
         <div className="dashboard-card recent-activity">
           <h3>Actividad Reciente</h3>
           <div className="activity-content">
-            {syncStats.recentActivity.length > 0 ? (
+            {syncStats?.recentActivity?.length > 0 ? (
               <div className="activity-list">
-                {syncStats.recentActivity.slice(0, 5).map((item, index) => (
+                {syncStats?.recentActivity?.slice(0, 5).map((item, index) => (
                   <div key={index} className="activity-item">
                     <span className="activity-time">
                       {new Date(item.createdAt?.toDate?.() || item.createdAt).toLocaleString()}

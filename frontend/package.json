@@ -1,6 +1,7 @@
 {
   "name": "worksync-frontend",
   "scripts": {
+    "dev": "vite",
     "build": "vite build",
     "vercel-build": "vite build"
   },

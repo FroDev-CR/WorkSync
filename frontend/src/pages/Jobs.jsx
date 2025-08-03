@@ -1,86 +1,26 @@
 import { useState, useEffect } from 'react';
-import { jobsService, syncService, authService } from '../services/api';
+import { useJobs, useAuthStatus, useJobSync } from '../hooks/useWorkSyncAPI';
 import './Jobs.css';
 
 const Jobs = () => {
-  const [jobs, setJobs] = useState([]);
   const [selectedJobs, setSelectedJobs] = useState([]);
-  const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
-  const [authStatus, setAuthStatus] = useState({
-    jobber: { connected: false },
-    quickbooks: { connected: false }
-  });
-  const [syncLoading, setSyncLoading] = useState(false);
+  
+  const { authStatus, loading: authLoading } = useAuthStatus('default-user');
+  const { jobs, loading, error, refetch } = useJobs({ userId: 'default-user' });
+  const { syncMultipleJobs, loading: syncLoading } = useJobSync();
 
   useEffect(() => {
-    loadAuthStatus();
-  }, []);
-
-  useEffect(() => {
-    if (authStatus.jobber.connected) {
-      loadJobs();
-    }
-  }, [authStatus.jobber.connected]);
-
-  const loadAuthStatus = async () => {
-    try {
-      const response = await authService.getAuthStatus();
-      setAuthStatus(response.status);
-    } catch (error) {
-      console.error('Error cargando estado de autenticación:', error);
-    }
-  };
-
-  const loadJobs = async () => {
-    setLoading(true);
-    setMessage('');
-    
-    try {
-      // Intentar cargar Jobs recientes primero
-      const response = await jobsService.getRecentJobs();
-      if (response.success) {
-        setJobs(response.jobs || []);
-      } else {
-        setMessage('Error cargando Jobs: ' + (response.error || 'Error desconocido'));
-      }
-    } catch (error) {
-      console.error('Error cargando Jobs:', error);
-      setMessage('Error cargando Jobs: ' + error.message);
+    if (error) {
+      setMessage('Error cargando Jobs: ' + error);
       
-      // Si hay error de autenticación, mostrar datos de ejemplo
-      if (error.message.includes('token')) {
-        setJobs([
-          {
-            id: '1',
-            title: 'Mantenimiento de jardín',
-            client: { name: 'Juan Pérez' },
-            status: 'completed',
-            total_amount: 150.00,
-            scheduled_date: '2024-01-15'
-          },
-          {
-            id: '2',
-            title: 'Limpieza de piscina',
-            client: { name: 'María García' },
-            status: 'completed',
-            total_amount: 200.00,
-            scheduled_date: '2024-01-20'
-          },
-          {
-            id: '3',
-            title: 'Reparación de aire acondicionado',
-            client: { name: 'Carlos López' },
-            status: 'invoiced',
-            total_amount: 350.00,
-            scheduled_date: '2024-01-25'
-          }
-        ]);
+      // Show example jobs if there's an authentication error
+      if (error.includes('token') || error.includes('auth')) {
+        // The error handling is now managed by the hook
+        setMessage('Error de autenticación. Mostrando datos de ejemplo.');
       }
-    } finally {
-      setLoading(false);
     }
-  };
+  }, [error]);
 
   const handleJobSelection = (jobId) => {
     setSelectedJobs(prev => 
@@ -104,34 +44,30 @@ const Jobs = () => {
       return;
     }
 
-    if (!authStatus.quickbooks.connected) {
+    if (!authStatus?.quickbooks?.connected) {
       setMessage('Debes conectar QuickBooks antes de sincronizar');
       return;
     }
 
-    setSyncLoading(true);
     setMessage('');
 
     try {
-      // Sincronizar Jobs seleccionados
-      const result = await syncService.syncMultipleJobs(selectedJobs);
+      const result = await syncMultipleJobs(selectedJobs, 'default-user');
       
-      if (result.successful.length > 0) {
-        setMessage(`✅ Sincronización exitosa: ${result.successful.length} Jobs sincronizados`);
-        setSelectedJobs([]);
-        // Recargar Jobs para actualizar el estado
-        await loadJobs();
-      } else if (result.skipped.length > 0) {
-        setMessage(`⚠️ ${result.skipped.length} Jobs ya estaban sincronizados`);
-        setSelectedJobs([]);
-      } else if (result.failed.length > 0) {
-        setMessage(`❌ Error sincronizando ${result.failed.length} Jobs`);
+      if (result.success) {
+        if (result.successfulJobs > 0) {
+          setMessage(`✅ Sincronización exitosa: ${result.successfulJobs} Jobs sincronizados`);
+          setSelectedJobs([]);
+          refetch(); // Reload jobs
+        } else if (result.failedJobs > 0) {
+          setMessage(`❌ Error sincronizando ${result.failedJobs} Jobs`);
+        }
+      } else {
+        setMessage(`❌ Error en la sincronización: ${result.message}`);
       }
     } catch (error) {
       console.error('Error sincronizando Jobs:', error);
       setMessage('Error sincronizando Jobs: ' + error.message);
-    } finally {
-      setSyncLoading(false);
     }
   };
 
@@ -158,7 +94,7 @@ const Jobs = () => {
     return statusMap[status] || status;
   };
 
-  if (!authStatus.jobber.connected) {
+  if (!authStatus?.jobber?.connected) {
     return (
       <div className="jobs">
         <div className="jobs-header">
@@ -198,7 +134,7 @@ const Jobs = () => {
         <button 
           className="btn btn-primary"
           onClick={handleSync}
-          disabled={syncLoading || selectedJobs.length === 0 || !authStatus.quickbooks.connected}
+          disabled={syncLoading || selectedJobs.length === 0 || !authStatus?.quickbooks?.connected}
         >
           {syncLoading ? 'Sincronizando...' : `Sincronizar (${selectedJobs.length})`}
         </button>

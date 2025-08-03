@@ -1,66 +1,71 @@
 # WorkSync 🔄
 
-Herramienta completa para sincronizar Jobs de Jobber a QuickBooks de forma automática mediante OAuth2.
+Complete solution for synchronizing Jobber jobs to QuickBooks automatically using OAuth2. This project consists of a React frontend with Vite and integrates with a Spring Boot backend.
 
-## ✨ Características
+## ✨ Features
 
-- 🔐 **Autenticación OAuth2** segura con Jobber y QuickBooks
-- 📋 **Sincronización inteligente** de Jobs completados/facturados
-- 🎯 **Selección múltiple** de Jobs para sincronización en lote
-- 📊 **Dashboard completo** con estadísticas y estado de conexiones
-- 📈 **Historial detallado** de todas las sincronizaciones
-- 🔄 **Refrescado automático** de tokens expirados
-- 💾 **Almacenamiento flexible** (Firebase o memoria)
-- 🖥️ **Interfaz responsive** y fácil de usar
-- ⚡ **Manejo robusto de errores** y logs detallados
+- 🔐 **Secure OAuth2 Authentication** with Jobber and QuickBooks
+- 📋 **Intelligent Job Synchronization** for completed/invoiced jobs
+- 🎯 **Bulk Job Selection** for batch synchronization
+- 📊 **Comprehensive Dashboard** with statistics and connection status
+- 📈 **Detailed History** of all synchronizations
+- 🔄 **Automatic Token Refresh** for expired credentials
+- 🖥️ **Responsive Interface** built with React + Vite
+- ⚡ **Robust Error Handling** with mock data fallbacks
+- 🎨 **Modern UI Components** with custom hooks and context
 
-## 🚀 Inicio Rápido
+## 🚀 Quick Start
 
-### 1. Instalación
+### 1. Frontend Setup
 
 ```bash
-# Clonar el repositorio
-git clone <tu-repositorio>
+# Clone the repository
+git clone <your-repository>
 cd WorkSync
 
-# Instalar todas las dependencias
-npm run install:all
-```
-
-### 2. Configuración
-
-```bash
-# Copiar archivo de configuración
-cp backend/env.example .env
-
-# Editar .env con tus credenciales (ver SETUP.md para detalles)
-```
-
-### 3. Ejecutar
-
-```bash
-# Iniciar el backend
-npm run dev
-
-# En otra terminal, iniciar el frontend
+# Install frontend dependencies
 cd frontend
+npm install
+
+# Start the development server
 npm run dev
 ```
 
-### 4. Verificar
+### 2. Backend Setup (Required for full functionality)
 
 ```bash
-# Ejecutar script de verificación
-npm run verify
+# Add your Spring Boot backend to the project
+# The frontend expects the backend to run on https://worksync-integration-handler-625943711296.europe-west1.run.app
+# See CLAUDE.md for integration details
 ```
 
-## 📋 Requisitos
+### 3. Configuration
 
-- **Node.js** 16+ 
-- **npm** o **yarn**
-- **Cuenta Jobber** con acceso a API
-- **Cuenta QuickBooks Online**
-- **Firebase** (opcional, para persistencia)
+```bash
+# Copy and edit the environment file
+cp frontend/.env.example frontend/.env
+
+# Configure your OAuth credentials:
+# - JOBBER_CLIENT_ID
+# - JOBBER_CLIENT_SECRET
+# - QUICKBOOKS_CLIENT_ID
+# - QUICKBOOKS_CLIENT_SECRET
+```
+
+### 4. Access the Application
+
+- **Frontend**: http://localhost:5173
+- **Backend**: https://worksync-integration-handler-625943711296.europe-west1.run.app
+- **Mock Mode**: Works without backend for UI testing
+
+## 📋 Requirements
+
+- **Node.js** 18+
+- **npm** or **yarn**
+- **Java 17+** (for Spring Boot backend)
+- **Jobber Account** with API access
+- **QuickBooks Online Account**
+- **Spring Boot Backend** (see integration guide)
 
 ## 🔧 Configuración Detallada
 
@@ -71,32 +76,35 @@ Consulta **[SETUP.md](./SETUP.md)** para:
 - Configuración de Firebase
 - Despliegue en producción
 
-## 📁 Estructura del Proyecto
+## 📁 Project Structure
 
 ```
 WorkSync/
-├── api/                    # Backend API
-│   ├── services/          # Servicios de integración
-│   │   ├── authService.js    # OAuth2 y tokens
-│   │   ├── jobberService.js  # API de Jobber
-│   │   ├── quickbooksService.js # API de QuickBooks
-│   │   └── syncService.js    # Lógica de sincronización
-│   ├── config/
-│   │   └── firebase.js       # Configuración Firebase
-│   └── index.js              # Servidor principal
-├── frontend/               # Frontend React
+├── frontend/                    # React + Vite Frontend
 │   ├── src/
-│   │   ├── components/       # Componentes reutilizables
-│   │   ├── pages/           # Páginas principales
-│   │   │   ├── Dashboard.jsx # Panel principal
-│   │   │   ├── Jobs.jsx     # Gestión de Jobs
-│   │   │   ├── History.jsx  # Historial
-│   │   │   └── Settings.jsx # Configuración
-│   │   └── services/
-│   │       └── api.js       # Cliente API
-├── SETUP.md               # Guía de configuración
-├── verify-setup.js       # Script de verificación
-└── README.md             # Este archivo
+│   │   ├── components/          # Reusable components
+│   │   │   ├── AuthStatus.jsx   # Authentication status display
+│   │   │   ├── OAuthHandler.jsx # OAuth callback handler
+│   │   │   └── Header.jsx       # Navigation header
+│   │   ├── hooks/               # Custom React hooks
+│   │   │   └── useWorkSyncAPI.js # API integration hooks
+│   │   ├── pages/               # Main application pages
+│   │   │   ├── Dashboard.jsx    # Main dashboard
+│   │   │   ├── Jobs.jsx         # Job management
+│   │   │   ├── History.jsx      # Sync history
+│   │   │   └── Settings.jsx     # OAuth settings
+│   │   ├── services/            # API services
+│   │   │   └── api.js           # WorkSync API client
+│   │   ├── App.jsx              # Main application component
+│   │   └── main.jsx             # Application entry point
+│   ├── package.json             # Frontend dependencies
+│   ├── vite.config.js           # Vite configuration
+│   └── .env                     # Environment variables
+├── backend/                     # Spring Boot Backend (to be added)
+│   └── [Spring Boot structure]
+├── CLAUDE.md                    # Development documentation
+├── SETUP.md                     # Configuration guide
+└── README.md                    # This file
 ```
 
 ## 🔐 Seguridad
@@ -124,17 +132,28 @@ npm run install:all  # Instalar todas las dependencias
 npm run build        # Construir frontend para producción
 ```
 
-## 🌐 Endpoints de API
+## 🌐 API Endpoints
 
-- `GET /health` - Estado del servidor
-- `GET /auth/status` - Estado de conexiones OAuth
-- `GET /auth/jobber` - Iniciar OAuth con Jobber
-- `GET /auth/quickbooks` - Iniciar OAuth con QuickBooks
-- `GET /auth/callback` - Callback OAuth universal
-- `GET /jobs` - Obtener Jobs de Jobber
-- `POST /sync/job` - Sincronizar Job individual
-- `POST /sync/multiple` - Sincronizar múltiples Jobs
-- `GET /sync/stats` - Estadísticas de sincronización
+### Health & Status
+- `GET /` - Basic health check
+- `GET /health` - Detailed health status
+
+### Authentication
+- `GET /auth/status?userId=<id>` - OAuth connection status
+- `GET /auth/jobber?userId=<id>` - Get Jobber OAuth URL
+- `GET /auth/quickbooks?userId=<id>` - Get QuickBooks OAuth URL
+- `POST /auth/disconnect` - Disconnect provider
+
+### Jobs
+- `GET /jobs?userId=<id>&page=1&perPage=50` - Get jobs with pagination
+- `GET /jobs/recent?userId=<id>` - Get recent jobs
+- `GET /jobs/pending?userId=<id>` - Get pending sync jobs
+
+### Synchronization
+- `POST /sync/job` - Sync individual job
+- `POST /sync/multiple` - Sync multiple jobs
+- `POST /sync/pending` - Sync all pending jobs
+- `GET /sync/stats?userId=<id>` - Sync statistics
 
 ## 🔍 Solución de Problemas
 

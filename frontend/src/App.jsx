@@ -1,78 +1,58 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { useState, useEffect } from 'react';
-import { authService } from './services/api';
+import Header from './components/Header';
 import Dashboard from './pages/Dashboard';
 import Jobs from './pages/Jobs';
 import History from './pages/History';
 import Settings from './pages/Settings';
-import Header from './components/Header';
+import OAuthHandler from './components/OAuthHandler';
+import { workSyncAPI } from './services/api';
 import './App.css';
 
 function App() {
-  const [authStatus, setAuthStatus] = useState({
-    jobber: { authenticated: false },
-    quickbooks: { authenticated: false }
-  });
-  const [loading, setLoading] = useState(true);
+  const [healthStatus, setHealthStatus] = useState(null);
+  const [isBackendAvailable, setIsBackendAvailable] = useState(false);
 
-  // Verificar estado de autenticación al cargar
   useEffect(() => {
-    checkAuthStatus();
-  }, []);
-
-  const checkAuthStatus = async () => {
-    try {
-      const response = await authService.getAuthStatus();
-      if (response.success) {
-        setAuthStatus(response.data);
+    // Check backend health on app start
+    const checkBackendHealth = async () => {
+      try {
+        const health = await workSyncAPI.checkHealth();
+        setHealthStatus(health);
+        setIsBackendAvailable(true);
+        console.log('Backend is available:', health);
+      } catch (error) {
+        console.warn('Backend not available, running in mock mode');
+        setIsBackendAvailable(false);
+        setHealthStatus({ 
+          success: false, 
+          message: 'Backend not available - running in mock mode' 
+        });
       }
-    } catch (error) {
-      console.error('Error verificando estado de autenticación:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+    };
 
-  // Manejar mensajes de URL (para callbacks de OAuth)
-  useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const success = urlParams.get('success');
-    const error = urlParams.get('error');
-
-    if (success) {
-      alert(`¡Autenticación exitosa con ${success}!`);
-      checkAuthStatus();
-      // Limpiar URL
-      window.history.replaceState({}, document.title, window.location.pathname);
-    }
-
-    if (error) {
-      alert(`Error de autenticación: ${decodeURIComponent(error)}`);
-      // Limpiar URL
-      window.history.replaceState({}, document.title, window.location.pathname);
-    }
+    checkBackendHealth();
   }, []);
-
-  if (loading) {
-    return (
-      <div className="loading">
-        <div className="loading-spinner"></div>
-        <p>Cargando WorkSync...</p>
-      </div>
-    );
-  }
 
   return (
     <Router>
-      <div className="app">
-        <Header authStatus={authStatus} onAuthStatusChange={checkAuthStatus} />
+      <div className="App">
+        <Header isBackendAvailable={isBackendAvailable} />
+        
+        {!isBackendAvailable && (
+          <div className="backend-warning">
+            ⚠️ Backend not available - running in demo mode with mock data. 
+            Start your Spring Boot backend on port 8080 for full functionality.
+          </div>
+        )}
+        
         <main className="main-content">
           <Routes>
-            <Route path="/" element={<Dashboard authStatus={authStatus} />} />
-            <Route path="/jobs" element={<Jobs authStatus={authStatus} />} />
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/jobs" element={<Jobs />} />
             <Route path="/history" element={<History />} />
-            <Route path="/settings" element={<Settings authStatus={authStatus} onAuthStatusChange={checkAuthStatus} />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
+            <Route path="/settings" element={<Settings />} />
+            <Route path="/auth/callback" element={<OAuthHandler />} />
           </Routes>
         </main>
       </div>

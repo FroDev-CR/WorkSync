@@ -46,11 +46,11 @@ const Header = ({ authStatus, onAuthStatusChange }) => {
 
         <div className="auth-status">
           <div className="auth-item">
-            <span className={`status-dot ${authStatus.jobber.authenticated ? 'connected' : 'disconnected'}`}></span>
+            <span className={`status-dot ${authStatus?.jobber?.connected ? 'connected' : 'disconnected'}`}></span>
             <span className="platform-name">Jobber</span>
           </div>
           <div className="auth-item">
-            <span className={`status-dot ${authStatus.quickbooks.authenticated ? 'connected' : 'disconnected'}`}></span>
+            <span className={`status-dot ${authStatus?.quickbooks?.connected ? 'connected' : 'disconnected'}`}></span>
             <span className="platform-name">QuickBooks</span>
           </div>
         </div>
