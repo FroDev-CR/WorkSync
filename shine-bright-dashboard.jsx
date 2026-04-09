@@ -651,6 +651,35 @@ export default function App() {
                     </div>
                   ))}
                 </div>
+                {manual > 0 && (
+                  <div style={{ marginTop:28, textAlign:"left", width:"100%", maxWidth:520, margin:"28px auto 0" }}>
+                    <div style={{ fontSize:13, fontWeight:700, color:"var(--text)", marginBottom:10, display:"flex", alignItems:"center", gap:6 }}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--amber)" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                      Ordenes manuales ({manual})
+                    </div>
+                    <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:"var(--radius-sm)", overflow:"hidden" }}>
+                      <table className="ws-tbl" style={{ fontSize:12 }}>
+                        <thead><tr>
+                          <th>Visit Title</th>
+                          <th>Servicio</th>
+                          <th>$</th>
+                          <th>Asignado</th>
+                        </tr></thead>
+                        <tbody>
+                          {rows.filter(r => r.updateStatus === "manual").map((r, i) => (
+                            <tr key={i}>
+                              <td style={{ maxWidth:200, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", fontWeight:500 }}>{r["Visit title"]}</td>
+                              <td className="dim">{r.serviceType}</td>
+                              <td className="mono" style={{ fontWeight:600 }}>{r.amount ? `$${Math.round(parseFloat(r.amount)*100)/100}` : "-"}</td>
+                              <td className="dim">{r.assignedTo}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
                 <div style={{ marginTop:24 }}>
                   <button className="ws-btn ws-btn-outline" onClick={() => { go(1); setRows([]); setFile(null); }}>
                     Nuevo reporte
